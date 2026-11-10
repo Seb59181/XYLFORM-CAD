@@ -1,0 +1,55 @@
+{
+  "name": "xylform-cad",
+  "version": "1.0.0",
+  "productName": "Xylform CAD",
+  "private": true,
+  "description": "Xylform CAD, by Seb. — CAO 2D/3D pour l'impression 3D : noyau OpenCascade.js, rendu Three.js, DWG/DXF/STEP, export STL/3MF, mise à jour automatique.",
+  "author": "Seb",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:occ": "node scripts/test-occ.mjs",
+    "desktop": "vite build && electron .",
+    "exe": "tsc --noEmit && vite build && electron-builder --win --x64 --config electron-builder.config.cjs --publish never",
+    "release": "tsc --noEmit && vite build && electron-builder --win --x64 --config electron-builder.config.cjs --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "@mlightcad/libredwg-web": "0.8.2",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.9.3",
+    "electron-builder": "^26.17.0",
+    "fflate": "^0.8.2",
+    "manifold-3d": "^3.0.0",
+    "opencascade.js": "2.0.0-beta.b5ff984",
+    "pdfjs-dist": "^6.4.299",
+    "pe-library": "^2.0.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "resedit": "^3.1.0",
+    "three": "^0.180.0",
+    "typescript": "~5.9.0",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Seb59181/XYLFORM-CAD",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Seb59181/XYLFORM-CAD.git"
+  }
+}
