@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Xylform CAD, by Seb.</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <style>
+      /* écran de démarrage : visible dès le premier affichage, retiré quand l'appli est prête */
+      html, body { margin: 0; height: 100%; background: #1b1f24; }
+      #splash { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, #0b1a33 0%, #05080f 70%); font-family: 'Segoe UI', system-ui, sans-serif; color: #e6e9ee; transition: opacity 0.35s; }
+      #splash.done { opacity: 0; pointer-events: none; }
+      #splash .sp-box { width: 560px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 0 0 20px; border-radius: 12px; overflow: hidden; background: #050a14; border: 1px solid #1d2a3d; box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6), 0 0 60px rgba(20, 120, 255, 0.15); }
+      #splash .sp-logo { display: block; width: 100%; aspect-ratio: 1000 / 563; }
+      #splash .sp-ver, #splash .sp-bar, #splash .sp-step { margin-left: 24px; margin-right: 24px; }
+      #splash .sp-ver { margin-top: 14px; font-size: 13px; color: #9aa5b4; }
+      #splash .sp-bar { margin-top: 14px; height: 6px; border-radius: 3px; background: #1b1f24; overflow: hidden; }
+      #splash .sp-bar i { display: block; height: 100%; width: 8%; border-radius: 3px; background: linear-gradient(90deg, #2f80ed, #4ea1ff); transition: width 0.3s; }
+      #splash .sp-bar.indet i { width: 30%; animation: sp-move 1.2s ease-in-out infinite; }
+      @keyframes sp-move { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+      #splash .sp-step { margin-top: 10px; font-size: 13px; color: #c9d1db; min-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #splash .sp-step.err { color: #ff8a80; white-space: normal; }
+    </style>
+  </head>
+  <body>
+    <div id="splash" role="status" aria-live="polite">
+      <div class="sp-box">
+        <img class="sp-logo" src="/logo-xylform.jpg" alt="Xylform CAD — Design. Create. Print. By Seb" />
+        <div class="sp-ver">Version %VITE_APP_VERSION% · CAO 2D/3D et impression 3D</div>
+        <div class="sp-bar indet"><i></i></div>
+        <div class="sp-step" id="splash-step">Chargement de l’interface…</div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

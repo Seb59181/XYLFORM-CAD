@@ -1,0 +1,108 @@
+# Publication d'une version de Xylform CAD : compilation Windows, signature SignPath (si configurée),
+# Release GitHub avec latest.yml pour la mise à jour automatique.
+# Déclenchement manuel uniquement (onglet Actions › Release › Run workflow), pour ne pas écraser une
+# Release déposée à la main : « publier » coché = Release v<version du package.json>, sinon essai
+# (exe téléchargeables dans les artefacts du workflow).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publier la Release (sinon : simple essai)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      SIGNPATH_ENABLED: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dépendances
+        run: npm ci --no-audit --no-fund
+
+      - name: Version à publier
+        id: ver
+        shell: bash
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Tests rapides
+        run: npm test
+
+      - name: Compilation et exe (sans publication)
+        run: npm run exe
+
+      - name: Exe à signer
+        id: unsigned
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xylform-cad-unsigned
+          path: |
+            release/Xylform-CAD-Setup-*.exe
+            release/Xylform-CAD-*-portable.exe
+          if-no-files-found: error
+
+      - name: Signature SignPath Foundation
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'xylform-cad' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_SLUG || 'initial' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: release-signed
+
+      - name: Remplacement par les exe signés et latest.yml recalculé
+        if: env.SIGNPATH_ENABLED == 'true'
+        shell: bash
+        run: |
+          cp -f release-signed/*.exe release/
+          node scripts/update-latest-yml.cjs release
+
+      - name: Exe pour essai
+        if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: xylform-cad-windows
+          path: |
+            release/*.exe
+            release/latest.yml
+
+      - name: Notes de version (CHANGELOG.md)
+        if: ${{ inputs.publish }}
+        shell: bash
+        run: |
+          v=${{ steps.ver.outputs.tag }}
+          v=${v#v}
+          awk -v v="$v" '$0 ~ "^## "v"( |$)" {on=1; next} on && (/^## / || /^---/) {exit} on {print}' CHANGELOG.md > release-notes.md
+          cat release-notes.md
+
+      - name: Publication de la Release
+        if: ${{ inputs.publish }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Xylform CAD ${{ steps.ver.outputs.tag }}
+          body_path: release-notes.md
+          make_latest: true
+          files: |
+            release/Xylform-CAD-Setup-*.exe
+            release/Xylform-CAD-Setup-*.exe.blockmap
+            release/Xylform-CAD-*-portable.exe
+            release/latest.yml
