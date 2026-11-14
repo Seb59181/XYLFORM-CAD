@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { promptAxis, type PromptSpec, type Vec3 } from '../core/commands/types';
 import type { Entity } from '../core/document/Document';
 import { intersectionsWith } from '../core/entities/edit';
+import { constrainDyn, dynLayout } from '../core/commands/dynInput';
 import { SNAP_LABEL, snapPoints, type SnapKind } from '../core/entities/geometry';
 import type { CadViewport } from '../render/CadViewport';
 import type { SceneSync, UnderlaySub } from '../render/SceneSync';
@@ -125,6 +126,7 @@ export class Interaction {
     on('contextmenu', (e) => this.onContext(e));
     this.disposers.push(
       app.on('prompt', () => this.refresh()),
+      app.on('input', () => this.app.settings.dyn && this.refresh()),
       app.on('command', () => {
         this.acquired = [];
         this.boxStart = null;
@@ -489,12 +491,27 @@ export class Interaction {
 
   /** Point courant : accrochage objet, sinon grille / ortho / polaire. */
   private resolvePoint(sx: number, sy: number, spec: PromptSpec | null): ResolvedPoint {
-    const r = this.resolveFree(sx, sy, spec);
+    const r = this.resolveDyn(this.resolveFree(sx, sy, spec), spec);
     // courbe plane (polyligne, spline) : le point reste à la hauteur du point précédent, même
     // accroché à un objet plus haut ou plus bas (sinon le profil n'est plus plan)
     const b = spec?.planar ? spec.basePoint : undefined;
     if (b && r.point.z !== b.z) return { ...r, point: { ...r.point, z: b.z } };
     return r;
+  }
+
+  /** Saisie dynamique : point verrouillé sur les valeurs déjà tapées dans les cases (longueur, X…). */
+  private resolveDyn(r: ResolvedPoint, spec: PromptSpec | null): ResolvedPoint {
+    const s = this.app.settings;
+    if (!s.dyn || !this.app.input.trim()) return r;
+    const layout = dynLayout(spec, s.dynRelative);
+    const p = layout && constrainDyn(layout, this.app.input, r.point);
+    return p ? { point: p, snap: null, tip: null, tracking: null } : r;
+  }
+
+  /** Pas de la résolution F9 : réglé (RESOL), sinon celui de la grille réglée, sinon adaptatif. */
+  private snapStep(): number {
+    const s = this.app.settings;
+    return s.snapUnit > 0 ? s.snapUnit : s.gridUnit > 0 ? s.gridUnit : this.vp.grid.currentStep;
   }
 
   private resolveFree(sx: number, sy: number, spec: PromptSpec | null): ResolvedPoint {
@@ -517,7 +534,7 @@ export class Interaction {
     }
     let p = raw;
     if (this.app.settings.snap) {
-      const step = this.vp.grid.currentStep;
+      const step = this.snapStep();
       p = { x: Math.round(p.x / step) * step, y: Math.round(p.y / step) * step, z: p.z };
     }
     const base = spec?.basePoint;
@@ -728,7 +745,7 @@ export class Interaction {
     if (d.handle.kind === 'move') {
       value = now - d.start;
       // pas d'accrochage : grille (RESOL) sinon arrondi lisible au zoom courant
-      const step = this.app.settings.snap ? this.vp.grid.currentStep : 10 ** Math.floor(Math.log10(Math.max(this.vp.worldUnitsPerPixel() * 4, 1e-6)));
+      const step = this.app.settings.snap ? this.snapStep() : 10 ** Math.floor(Math.log10(Math.max(this.vp.worldUnitsPerPixel() * 4, 1e-6)));
       value = Math.round(value / step) * step;
       tip = `Déplacer ${'XYZ'[d.handle.axis]} : ${value.toFixed(4).replace(/\.?0+$/, '')}`;
     } else {
@@ -1020,6 +1037,8 @@ export class Interaction {
     const proc = app.processor;
     if (spec && (spec.kind === 'point' || ((spec.kind === 'distance' || spec.kind === 'real' || spec.kind === 'angle') && spec.basePoint))) {
       const r = this.resolvePoint(x, y, spec);
+      // valeur tapée dans la saisie dynamique : consommée par le clic qui l'a utilisée
+      if (app.input.trim() && app.settings.dyn && dynLayout(spec, app.settings.dynRelative)) app.setInput('');
       proc.pick(r.point);
       return;
     }

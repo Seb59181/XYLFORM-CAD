@@ -27,6 +27,8 @@ export interface ParseEnv {
   cursorDirection?: Vec3;
   /** Saisie dynamique : les points secondaires sont relatifs par défaut (DYNPICOORDS = 0). */
   dynamicRelative?: boolean;
+  /** Point de référence des saisies dynamiques relatives (défaut : dernier point). */
+  dynamicBase?: Vec3;
 }
 
 const DEG = Math.PI / 180;
@@ -167,8 +169,10 @@ export function parsePoint(text: string, env: ParseEnv): Vec3 | null {
   if (s === '@') return { ...env.lastPoint };
 
   let relative = env.dynamicRelative ?? false;
+  let origin = env.dynamicBase ?? env.lastPoint;
   if (s.startsWith('@')) {
     relative = true;
+    origin = env.lastPoint;
     s = s.slice(1);
   } else if (s.startsWith('#')) {
     relative = false;
@@ -201,7 +205,7 @@ export function parsePoint(text: string, env: ParseEnv): Vec3 | null {
   } else {
     return null;
   }
-  return relative ? add(env.lastPoint, p) : p;
+  return relative ? add(origin, p) : p;
 }
 
 // ---------------------------------------------------------------------------

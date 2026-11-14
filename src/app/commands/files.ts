@@ -6,7 +6,7 @@ import type { CommandContext, CommandDefinition, Vec3 } from '../../core/command
 import type { Entity, LayerDef, NewEntity } from '../../core/document/Document';
 import { mergeMeshes, type IndexedMesh } from '../../core/mesh/IndexedMesh';
 import { NonManifoldError } from '../../core/mesh/ManifoldCheck';
-import { curvePoints, dimensionGeometry, dimensionText, hatchSegments, TEXT_CAP, textBox, textLayout } from '../../core/entities/geometry';
+import { curvePoints, dimensionGeometry, dimensionLabel, hatchSegments, TEXT_CAP, textBox, textLayout } from '../../core/entities/geometry';
 import { readDxf, writeDxf } from '../../io/dxf';
 import { exportStlBinary } from '../../io/exporters/StlExporter';
 import { exportThreeMf } from '../../io/exporters/ThreeMfExporter';
@@ -518,9 +518,11 @@ function svgOf(app: AppHost, es: Entity[]): string {
     }
     if (e.type === 'DIMENSION') {
       const g = dimensionGeometry(e, app.sysvars.DIMASZ);
-      g.lines.forEach((l) => (l.forEach(grow), paths.push(`<path d="${pathOf(l)}" stroke="${color}" stroke-width="${lw}" fill="none"/>`)));
       const h = e.textHeight ?? app.sysvars.DIMTXT;
-      paths.push(`<text x="${fmt(g.textPos.x)}" y="${fmt(-g.textPos.y)}" font-size="${fmt(h * 1.4)}" font-family="Arial" fill="${color}" text-anchor="middle" transform="rotate(${fmt((-g.angle * 180) / Math.PI)} ${fmt(g.textPos.x)} ${fmt(-g.textPos.y)})">${esc(dimensionText(e, app.sysvars.DIMDEC))}</text>`);
+      const lab = dimensionLabel(e, h, app.sysvars.DIMASZ, app.sysvars.DIMDEC);
+      [...g.lines, ...lab.lines].forEach((l) => (l.forEach(grow), paths.push(`<path d="${pathOf(l)}" stroke="${color}" stroke-width="${lw}" fill="none"/>`)));
+      const t = lab.at;
+      paths.push(`<text x="${fmt(t.x)}" y="${fmt(-t.y)}" font-size="${fmt(h * 1.4)}" font-family="Arial" fill="${color}" text-anchor="middle" transform="rotate(${fmt((-lab.angle * 180) / Math.PI)} ${fmt(t.x)} ${fmt(-t.y)})">${esc(lab.text)}</text>`);
       continue;
     }
     for (const pl of curvePoints(e)) {

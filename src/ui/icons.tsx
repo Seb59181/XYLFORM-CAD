@@ -192,6 +192,42 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M8 24l1.5-4.5 3 3zM24 8l-4.5 1.5 3 3z" fill={A} stroke="none" />
     </>
   ),
+  dimangular: (
+    <>
+      <path d="M5 27L27 27M5 27L21 7" />
+      <path d="M19 27a14 14 0 0 0-4.2-10" stroke={A} />
+      {label('°', 24, 19, 10, A)}
+    </>
+  ),
+  dimarc: (
+    <>
+      <path d="M5 25a12 12 0 0 1 22 0" />
+      <path d="M8 20a9 9 0 0 1 16 0" stroke={A} strokeOpacity={0.5} />
+      <path d="M11 12a6 3 0 0 1 10 0" stroke={A} />
+    </>
+  ),
+  dimordinate: (
+    <>
+      <path d="M6 26V6M6 26h20" strokeOpacity={0.5} />
+      <path d="M14 24V12M22 24V8" stroke={A} />
+      {dot(14, 24)}
+      {dot(22, 24)}
+    </>
+  ),
+  dimcontinue: (
+    <>
+      <path d="M4 22V12M16 22V12M28 22V12" strokeOpacity={0.5} />
+      <path d="M4 15h24" stroke={A} />
+      <path d="M4 15l3-1.5v3zM16 15l-3-1.5v3zM16 15l3-1.5v3zM28 15l-3-1.5v3z" fill={A} stroke="none" />
+    </>
+  ),
+  dimbaseline: (
+    <>
+      <path d="M4 26V8M16 26V14M28 26V8" strokeOpacity={0.5} />
+      <path d="M4 18h12M4 11h24" stroke={A} />
+      <path d="M4 18l3-1.5v3zM16 18l-3-1.5v3zM4 11l3-1.5v3zM28 11l-3-1.5v3z" fill={A} stroke="none" />
+    </>
+  ),
   // --- Modification -------------------------------------------------------------------
   move: (
     <path d="M16 4v24M4 16h24M16 4l-3 4h6zM16 28l-3-4h6zM4 16l4-3v6zM28 16l-4-3v6z" fill="currentColor" />
@@ -616,6 +652,21 @@ export const ICONS: Record<string, JSX.Element> = {
         </radialGradient>
       </defs>
       <circle cx={16} cy={16} r={11} fill="url(#ico-sph)" />
+    </>
+  ),
+  'vs-technical': (
+    <>
+      <rect x={4} y={4} width={24} height={24} rx={2} fill="#f4f4f0" stroke="none" />
+      <path d="M8 22l8-4 8 4-8 4zM8 22V12l8-4 8 4v10M16 18V8" stroke="#111" />
+      <path d="M8 12l8 4 8-4" stroke="#111" strokeDasharray="2 1.6" strokeOpacity={0.7} />
+    </>
+  ),
+  'named-views': (
+    <>
+      <rect x={4} y={9} width={18} height={14} rx={2} />
+      <path d="M22 13l6-3v12l-6-3z" />
+      <path d="M8 27h10" stroke={A} />
+      {dot(13, 16, A)}
     </>
   ),
   'vs-shaded': <circle cx={16} cy={16} r={11} fill={F2} stroke="none" />,

@@ -16,9 +16,10 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import type { Vec3 } from '../core/commands/types';
 import type { Entity, LayerDef, TextAlign, TextVAlign, UnderlayDef } from '../core/document/Document';
 import { solidEdges } from './solidEdges';
+import { inkOnWhite, outlineMaterial, TECH_HIDDEN, TECH_INK, techFaceMaterial } from './technical';
 import { CONSTRAINT_GLYPH, isDimensional } from '../core/constraints/types';
 import { gripsOf, partPosition, partSegment } from '../core/entities/edit';
-import { curvePoints, dimensionGeometry, dimensionText, entityBBox, hatchSegments, textLayout, underlayMatrix } from '../core/entities/geometry';
+import { curvePoints, dimensionGeometry, dimensionLabel, dimensionText, entityBBox, hatchSegments, textLayout, underlayMatrix } from '../core/entities/geometry';
 import { fadeColor, underlayEntities, underlayPickData } from '../core/entities/underlay';
 import type { AppHost } from '../app/AppHost';
 import { constraintDisplay } from '../app/commands/constraints';
@@ -159,6 +160,7 @@ export class SceneSync {
       app.on('settings', () => this.updateConstraints()),
     );
     vp.setRenderMode(app.settings.visualStyle === 'render');
+    vp.setTechnical(app.settings.visualStyle === 'technical');
     this.sync();
   }
 
@@ -174,6 +176,13 @@ export class SceneSync {
     const w = this.vp.container.clientWidth, h = this.vp.container.clientHeight;
     for (const m of this.lineMats.values()) m.resolution.set(w, h);
     const k = this.vp.worldUnitsPerPixel();
+    if (this.hiddenMat) {
+      // tirets de taille constante à l'écran (6 px, espaces de 4 px)
+      this.hiddenMat.resolution.set(w, h);
+      this.hiddenMat.dashSize = 6 * k;
+      this.hiddenMat.gapSize = 4 * k;
+    }
+    if (this.outline) this.outline.uniforms.uResolution!.value.set(w * this.vp.renderer.getPixelRatio(), h * this.vp.renderer.getPixelRatio());
     for (const s of this.screenSprites) s.sprite.scale.set(s.px * s.aspect * k, s.px * k, 1);
   };
 
@@ -228,6 +237,10 @@ export class SceneSync {
       m = pm;
       this.meshMats.set(key, m);
     }
+    if (!m && style === 'technical') {
+      m = techFaceMaterial(surface);
+      this.meshMats.set(key, m);
+    }
     if (!m) {
       const sm = CadViewport.solidMaterial(shadeColor(color));
       if (surface) sm.side = THREE.DoubleSide;
@@ -241,6 +254,25 @@ export class SceneSync {
       this.meshMats.set(key, m);
     }
     return m;
+  }
+
+  private hiddenMat: LineMaterial | null = null;
+  private outline: THREE.ShaderMaterial | null = null;
+
+  /** Arêtes cachées du style Technique : tirets gris dessinés là où une face les masque. */
+  private hiddenEdgeMat(): LineMaterial {
+    if (!this.hiddenMat) {
+      const m = new LineMaterial({ color: new THREE.Color(TECH_HIDDEN).getHex(), linewidth: 1, worldUnits: false, dashed: true, dashSize: 1, gapSize: 1, transparent: true, depthWrite: false });
+      m.depthFunc = THREE.GreaterDepth;
+      m.toneMapped = false;
+      m.resolution.set(this.vp.container.clientWidth, this.vp.container.clientHeight);
+      this.hiddenMat = m;
+    }
+    return this.hiddenMat;
+  }
+
+  private outlineMat(): THREE.ShaderMaterial {
+    return (this.outline ??= outlineMaterial());
   }
 
   private lineWidth(layer: LayerDef | undefined): number {
@@ -257,6 +289,7 @@ export class SceneSync {
   rebuild(): void {
     this.style++;
     this.vp.setRenderMode(this.app.settings.visualStyle === 'render');
+    this.vp.setTechnical(this.app.settings.visualStyle === 'technical');
     for (const m of this.meshMats.values()) m.dispose();
     this.meshMats.clear();
     this.sync();
@@ -296,7 +329,8 @@ export class SceneSync {
   private build(e: Entity, layer: LayerDef | undefined): Rec {
     const visible = !!layer && layer.visible && !layer.frozen && !e.hidden;
     const rec: Rec = { entity: e, layer, style: this.style, visible, batch: null, segs: null, pointBatch: null, obj: null, mesh: null, polys: [], bbox: null };
-    const color = this.app.doc.colorOf(e);
+    const technical = this.app.settings.visualStyle === 'technical';
+    const color = technical ? inkOnWhite(this.app.doc.colorOf(e)) : this.app.doc.colorOf(e);
     const width = this.lineWidth(layer);
     if (e.type === 'UNDERLAY') {
       rec.polys = curvePoints(e);
@@ -330,16 +364,13 @@ export class SceneSync {
         rec.obj = this.textMesh(e.text, color, e.position, e.height, e.rotation, e);
         break;
       case 'DIMENSION': {
-        const g = dimensionGeometry(e, this.app.sysvars.DIMASZ);
-        segmentsOf(g.lines, segs);
-        const h = e.textHeight ?? this.app.sysvars.DIMTXT;
-        let a = g.angle;
-        if (a > Math.PI / 2 + 1e-6 || a < -Math.PI / 2 - 1e-6) a += Math.PI; // texte lisible
+        const sv = this.app.sysvars;
+        const g = dimensionGeometry(e, sv.DIMASZ);
+        const h = e.textHeight ?? sv.DIMTXT;
         // texte au-dessus de la ligne de cote (sens de lecture), centré
-        const line = g.lines[2];
-        const ref = e.dimType === 'radius' || e.dimType === 'diameter' || !line ? e.offsetPoint : { x: (line[0]!.x + line[1]!.x) / 2, y: (line[0]!.y + line[1]!.y) / 2, z: line[0]!.z };
-        const at = { x: ref.x - Math.sin(a) * h * 0.5, y: ref.y + Math.cos(a) * h * 0.5, z: ref.z };
-        rec.obj = this.textMesh(dimensionText(e, this.app.sysvars.DIMDEC), color, at, h, a, { align: 'center' });
+        const lab = dimensionLabel(e, h, sv.DIMASZ, sv.DIMDEC);
+        segmentsOf([...g.lines, ...lab.lines], segs);
+        rec.obj = this.textMesh(lab.text, color, lab.at, h, lab.angle, { align: 'center' });
         break;
       }
       case 'HATCH': {
@@ -719,9 +750,25 @@ export class SceneSync {
       if (segs.length) {
         const eg = new LineSegmentsGeometry();
         eg.setPositions(segs);
-        const edgeColor = style === 'realistic' ? darken(color) : color;
-        g.add(new LineSegments2(eg, this.lineMat(edgeColor, width, { solidEdge: true })));
+        const edgeColor = style === 'technical' ? TECH_INK : style === 'realistic' ? darken(color) : color;
+        g.add(new LineSegments2(eg, this.lineMat(edgeColor, style === 'technical' ? Math.max(width, 1.25) : width, { solidEdge: true })));
+        if (style === 'technical') {
+          // arêtes cachées : visibles seulement derrière les faces (profondeur plus grande), en tirets
+          const hidden = new LineSegments2(eg, this.hiddenEdgeMat());
+          hidden.computeLineDistances();
+          hidden.renderOrder = 3;
+          hidden.userData.sharedGeometry = true;
+          g.add(hidden);
+        }
       }
+    }
+    if (style === 'technical') {
+      // contours apparents (silhouette des surfaces courbes)
+      const hull = new THREE.Mesh(geo, this.outlineMat());
+      hull.userData.outline = true;
+      hull.userData.sharedGeometry = true;
+      hull.raycast = () => undefined;
+      g.add(hull);
     }
     return g;
   }

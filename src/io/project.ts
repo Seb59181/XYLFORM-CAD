@@ -6,7 +6,7 @@
  * même si le fichier source a été déplacé.
  */
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
-import type { Entity, DrawingSheet, Joint, LayerDef, UnderlayDef } from '../core/document/Document';
+import type { Entity, DrawingSheet, Joint, NamedView, LayerDef, UnderlayDef } from '../core/document/Document';
 import type { Constraint } from '../core/constraints/types';
 import type { AppHost } from '../app/AppHost';
 import type { DisplayMesh, SolidResult } from '../kernel/protocol';
@@ -28,6 +28,7 @@ interface ProjectJson {
   underlays?: StoredUnderlay[];
   joints?: Joint[];
   sheets?: DrawingSheet[];
+  namedViews?: NamedView[];
 }
 
 type StoredUnderlay = Omit<UnderlayDef, 'entities' | 'layers' | 'image'> & {
@@ -67,6 +68,7 @@ export async function saveProject(app: AppHost, doc: AppHost['doc'] = app.doc): 
     sysvars: { ...doc.sysvars },
     ...(doc.joints.length ? { joints: doc.joints } : {}),
     ...(doc.sheets.length ? { sheets: doc.sheets } : {}),
+    ...(doc.namedViews.length ? { namedViews: doc.namedViews } : {}),
   };
   const underlays = Object.values(doc.underlays);
   if (underlays.length) {
@@ -141,5 +143,6 @@ export async function loadProject(app: AppHost, data: Uint8Array, fileName: stri
     underlays,
     joints: json.joints,
     sheets: json.sheets,
+    namedViews: json.namedViews,
   });
 }

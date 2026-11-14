@@ -194,6 +194,15 @@ function stretchPatch(e: Entity, inside: (p: Vec3) => boolean, d: Vec3): Partial
     case 'SPLINE':
       return e.fitPoints.some(inside) ? { fitPoints: e.fitPoints.map(mv) } : null;
     case 'DIMENSION':
+      if (e.dimType === 'angular' || e.dimType === 'arclength' || e.dimType === 'ordinate') {
+        // sommet / centre / origine solidaires : étirés seulement s'ils sont dans la fenêtre
+        const patch: Partial<Extract<Entity, { type: 'DIMENSION' }>> = {};
+        if (inside(e.p1)) patch.p1 = mv(e.p1);
+        if (inside(e.p2)) patch.p2 = mv(e.p2);
+        if (inside(e.offsetPoint)) patch.offsetPoint = mv(e.offsetPoint);
+        if (e.center && inside(e.center)) patch.center = mv(e.center);
+        return Object.keys(patch).length ? patch : null;
+      }
       return inside(e.p1) || inside(e.p2) || inside(e.offsetPoint) ? { p1: mv(e.p1), p2: mv(e.p2), offsetPoint: mv(e.offsetPoint) } : null;
     case 'HATCH':
       return e.boundaries.some((b) => b.some(inside)) ? { boundaries: e.boundaries.map((b) => b.map(mv)) } : null;

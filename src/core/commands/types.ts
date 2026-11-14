@@ -1,5 +1,5 @@
 /**
- * Types du système de commandes .
+ * Types du système de commandes.
  *
  * Une commande est une coroutine asynchrone : elle émet des "prompts" (demande de point,
  * de distance, de mot-clé…) et attend une réponse qui peut venir indifféremment de la
@@ -66,6 +66,13 @@ export interface PromptSpec {
   planar?: boolean;
   /** Désactive l'élastique par défaut (ligne point de base → curseur). */
   noRubberBand?: boolean;
+  /**
+   * Saisie dynamique : point de référence des valeurs tapées quand il n'y a pas de `basePoint`
+   * (ex. 2e coin du RECTANGLE : « 120 Tab 80 » = 120 × 80 depuis le 1er coin).
+   */
+  dynBase?: Vec3;
+  /** Libellés des deux cases de la saisie dynamique (défaut ΔX / ΔY). */
+  dynLabels?: [string, string];
 }
 
 /** Axe de glissement du curseur (unitaire) d'un prompt de hauteur ou de distance axiale. */

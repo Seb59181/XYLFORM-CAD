@@ -2,7 +2,7 @@
  * Vues et navigation (ZOOM, VUE, STYLEVISUEL…), requêtes (DIST, AIRE, ID, LISTE, PROPMASSE),
  * presse-papiers, réglages de dessin (ACCROBJ, GRILLE, ORTHO…), calques et utilitaires.
  */
-import type { CommandContext, CommandDefinition, Vec3 } from '../../core/commands';
+import { ask, type CommandContext, type CommandDefinition, type Vec3 } from '../../core/commands';
 import { placeHistory, placePrimitive, type Entity, type LayerDef, type NewEntity } from '../../core/document/Document';
 import { arcSweep, curvePoints, entityArea, entityBBox, entityLabel, entityLength, polygonArea, polylineLength, SNAP_LABEL, transformEntity, type SnapKind } from '../../core/entities/geometry';
 import { add, angleXY, dist, sub, translation } from '../../core/math/affine';
@@ -82,13 +82,81 @@ const view = cmd(
   { transparent: true },
 );
 
-export const STYLE_LABEL: Record<VisualStyle, string> = { realistic: 'Réaliste', render: 'Rendu', shaded: 'Ombré', wireframe: 'Filaire', xray: 'Rayons X' };
+export const STYLE_LABEL: Record<VisualStyle, string> = { realistic: 'Réaliste', render: 'Rendu', shaded: 'Ombré', wireframe: 'Filaire', xray: 'Rayons X', technical: 'Technique' };
+
+/** Rappelle une vue nommée (cadrage, projection, style visuel). */
+export function restoreNamedView(app: AppHost, name: string): boolean {
+  const v = app.doc.namedView(name);
+  if (!v || !app.viewport) return false;
+  if (v.workspace && v.workspace !== app.settings.workspace) app.set('workspace', v.workspace);
+  if (v.style && v.style in STYLE_LABEL && v.style !== app.settings.visualStyle) app.set('visualStyle', v.style as VisualStyle);
+  if (app.settings.workspace === '3d' && v.view.projection !== app.settings.projection) app.set('projection', v.view.projection);
+  app.viewport.setViewState(v.view);
+  return true;
+}
+
+/** Enregistre la vue courante sous ce nom (remplace une vue du même nom). */
+export function saveNamedView(app: AppHost, name: string): boolean {
+  if (!app.viewport || !name.trim()) return false;
+  app.doc.putNamedView({ name: name.trim(), view: app.viewport.getViewState(), style: app.settings.visualStyle, workspace: app.settings.workspace });
+  return true;
+}
+
+/**
+ * VUESNOMMEES (scènes) : enregistrer le cadrage courant sous un nom,
+ * le rappeler (avec sa projection et son style visuel), supprimer, lister. Enregistrées dans le dessin.
+ */
+const namedViews = cmd(
+  'NAMEDVIEWS',
+  'VUESNOMMEES',
+  ['VN', 'SCENES', 'SCENE'],
+  'Vues nommées : enregistre et rappelle un cadrage avec sa projection et son style visuel',
+  async (ctx, app) => {
+    const names = () => app.doc.namedViews.map((v) => v.name);
+    for (;;) {
+      const has = names().length > 0;
+      const k = await getKeyword(
+        ctx,
+        has ? `Vues nommées (${names().join(', ')})` : 'Aucune vue nommée',
+        [kw('Save', 'Enregistrer', 'E', 'Vue courante'), ...(has ? [kw('Restore', 'Restaurer', 'R'), kw('Delete', 'Supprimer', 'S'), kw('List', 'Liste', 'L')] : []), kw('Exit', 'Quitter', 'Q')],
+        has ? 'Restore' : 'Save',
+      );
+      if (k === 'Exit') return;
+      if (k === 'List') {
+        for (const v of app.doc.namedViews) ctx.print(`  ${v.name} : ${v.view.projection === 'perspective' ? 'perspective' : 'parallèle'}${v.style ? `, ${STYLE_LABEL[v.style as VisualStyle] ?? v.style}` : ''}`);
+        continue;
+      }
+      if (k === 'Save') {
+        let i = app.doc.namedViews.length + 1;
+        while (app.doc.namedView(`Vue${i}`)) i++;
+        const name = await getString(ctx, 'Nom de la vue', `Vue${i}`);
+        if (!name?.trim()) continue;
+        const replaced = !!app.doc.namedView(name);
+        saveNamedView(app, name);
+        ctx.print(`Vue « ${name.trim()} » ${replaced ? 'remplacée' : 'enregistrée'}.`);
+        return;
+      }
+      const v = await getKeyword(ctx, k === 'Restore' ? 'Vue à restaurer' : 'Vue à supprimer', app.doc.namedViews.map((n, i) => kw(`V${i}`, n.name.replace(/\s+/g, '_'), String(i + 1))));
+      const view = app.doc.namedViews[parseInt(v.slice(1))];
+      if (!view) continue;
+      if (k === 'Delete') {
+        app.doc.deleteNamedView(view.name);
+        ctx.print(`Vue « ${view.name} » supprimée.`);
+        continue;
+      }
+      restoreNamedView(app, view.name);
+      ctx.print(`Vue « ${view.name} » restaurée.`);
+      return;
+    }
+  },
+  { transparent: true },
+);
 
 const visualStyle = cmd('VSCURRENT', 'STYLEVISUEL', ['SV', 'VS'], 'Style visuel du viewport', async (ctx, app) => {
   const v = await getKeyword(
     ctx,
     'Choisissez un style visuel',
-    [kw('realistic', 'Réaliste', 'R', 'Faces ombrées et arêtes'), kw('render', 'Rendu', 'RE', 'Matériaux, reflets et ombres portées'), kw('shaded', 'Ombré', 'O', 'Faces ombrées sans arêtes'), kw('wireframe', 'Filaire', 'F', 'Arêtes seules'), kw('xray', 'RayonsX', 'X', 'Faces transparentes')],
+    [kw('realistic', 'Réaliste', 'R', 'Faces ombrées et arêtes'), kw('render', 'Rendu', 'RE', 'Matériaux, reflets et ombres portées'), kw('shaded', 'Ombré', 'O', 'Faces ombrées sans arêtes'), kw('wireframe', 'Filaire', 'F', 'Arêtes seules'), kw('xray', 'RayonsX', 'X', 'Faces transparentes'), kw('technical', 'Technique', 'T', 'Dessin au trait sur fond blanc : arêtes cachées en tirets, contours apparents')],
     app.settings.visualStyle,
   );
   app.set('visualStyle', v as VisualStyle);
@@ -189,11 +257,63 @@ const osnap = cmd(
 const toggleCmd = (name: string, local: string, aliases: string[], key: Parameters<import('../AppHost').AppHost['toggle']>[0], description: string) =>
   cmd(name, local, aliases, description, async (_ctx, app) => app.toggle(key), { transparent: true });
 
-const grid = toggleCmd('GRID', 'GRILLE', ['GR'], 'grid', 'Affiche ou masque la grille (F7)');
-const snap = toggleCmd('SNAP', 'RESOL', ['SN'], 'snap', 'Accrochage à la grille (F9)');
+/**
+ * GRILLE / RESOL : Entrée bascule ; un nombre fixe le pas ;
+ * « Adaptatif » (grille) ou « Grille » (résolution) revient au pas qui suit le zoom.
+ */
+const stepCmd = (name: string, local: string, aliases: string[], kind: 'grid' | 'snap', description: string) =>
+  cmd(
+    name,
+    local,
+    aliases,
+    description,
+    async (ctx, app) => {
+      const s = app.settings;
+      const key = kind === 'grid' ? 'gridUnit' : 'snapUnit';
+      const cur = s[key];
+      const now = cur > 0 ? fmt(cur) : kind === 'grid' ? 'adaptatif' : s.gridUnit > 0 ? `grille (${fmt(s.gridUnit)})` : 'grille adaptative';
+      const res = await ask(ctx, {
+        kind: 'real',
+        message: `Pas ${kind === 'grid' ? 'de la grille' : 'de la résolution'} (actuel : ${now}) ou Entrée pour ${s[kind] ? 'désactiver' : 'activer'}`,
+        allowNone: true,
+        allowZero: false,
+        keywords: [kw('On', 'Actif', 'AC'), kw('Off', 'Inactif', 'I'), kind === 'grid' ? kw('Auto', 'Adaptatif', 'AD', 'Le pas suit le zoom') : kw('Auto', 'Grille', 'G', 'Même pas que la grille')],
+      });
+      if (res.kind === 'none') return app.toggle(kind);
+      const r = res.kind === 'number' || res.kind === 'keyword' ? res.value : null;
+      if (r === null) return;
+      if (r === 'On' || r === 'Off') {
+        if (s[kind] !== (r === 'On')) app.toggle(kind);
+        return;
+      }
+      if (r === 'Auto') {
+        app.set(key, 0);
+        return ctx.print(kind === 'grid' ? 'Grille adaptative : le pas suit le zoom.' : 'Résolution : pas de la grille.');
+      }
+      app.set(key, r as number);
+      if (!app.settings[kind]) app.toggle(kind);
+      ctx.print(`Pas ${kind === 'grid' ? 'de la grille' : 'de la résolution'} : ${fmt(r as number)}.`);
+    },
+    { transparent: true },
+  );
+
+const grid = stepCmd('GRID', 'GRILLE', ['GR'], 'grid', 'Grille (F7) : affiche, masque ou règle le pas');
+const snap = stepCmd('SNAP', 'RESOL', ['SN'], 'snap', 'Accrochage à la grille (F9) : active ou règle le pas');
 const ortho = toggleCmd('ORTHO', 'ORTHO', ['OR'], 'ortho', 'Mode orthogonal (F8)');
 const polar = toggleCmd('POLAR', 'POLAIRE', ['POLA'], 'polar', 'Repérage polaire (F10)');
 const dyn = toggleCmd('DYNMODE', 'SAISIEDYN', ['DYN'], 'dyn', 'Saisie dynamique au curseur (F12)');
+const dynCoords = cmd(
+  'DYNPICOORDS',
+  'COORDSDYN',
+  [],
+  'Saisie dynamique : coordonnées des points suivants relatives (par défaut) ou absolues',
+  async (ctx, app) => {
+    const v = await getKeyword(ctx, 'Coordonnées tapées au curseur', [kw('Relative', 'Relatives', 'R', 'Depuis le point précédent ; # pour l’absolu'), kw('Absolute', 'Absolues', 'A', 'Depuis l’origine ; @ pour le relatif')], app.settings.dynRelative ? 'Relative' : 'Absolute');
+    app.set('dynRelative', v === 'Relative');
+    ctx.print(v === 'Relative' ? 'Saisie dynamique : coordonnées relatives (« # » pour l’absolu).' : 'Saisie dynamique : coordonnées absolues (« @ » pour le relatif).');
+  },
+  { transparent: true },
+);
 const lwt = toggleCmd('LWDISPLAY', 'AFFEPAIS', ['LWT', 'LWDISP'], 'lwt', 'Affiche les épaisseurs de ligne');
 
 const setvar = cmd(
@@ -501,6 +621,8 @@ export const utilityCommands: CommandDefinition[] = [
   ortho,
   polar,
   dyn,
+  dynCoords,
+  namedViews,
   lwt,
   setvar,
   distance,

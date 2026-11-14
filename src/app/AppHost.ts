@@ -18,7 +18,7 @@ import type { StandardView, Workspace } from '../render/CadViewport';
 import type { SaveHandle } from '../io/fileAccess';
 import type { Autosaver } from '../io/autosave';
 
-export type VisualStyle = 'realistic' | 'render' | 'shaded' | 'wireframe' | 'xray';
+export type VisualStyle = 'realistic' | 'render' | 'shaded' | 'wireframe' | 'xray' | 'technical';
 export type HostEvent = 'log' | 'prompt' | 'input' | 'settings' | 'selection' | 'kernel' | 'command' | 'cursor' | 'doc' | 'constraints' | 'tabs';
 
 /** Disposition des fenêtres de vue : une seule, deux (côte à côte / l'une sur l'autre), trois, quatre. */
@@ -59,6 +59,11 @@ export interface Settings {
   polar: boolean;
   osnap: boolean;
   dyn: boolean;
+  /**
+   * Saisie dynamique : coordonnées tapées relatives au point précédent (« # » force
+   * l'absolu) ; false = absolues sauf « @ ».
+   */
+  dynRelative: boolean;
   lwt: boolean;
   osnapModes: SnapKind[];
   /**
@@ -68,6 +73,10 @@ export interface Settings {
   infer: boolean;
   /** Manipulateur 3D (flèches et anneaux) sur la sélection, en espace 3D. */
   gizmo: boolean;
+  /** Pas de la grille (GRILLE › Pas) ; 0 = grille adaptative qui suit le zoom. */
+  gridUnit: number;
+  /** Pas de la résolution F9 (RESOL › Pas) ; 0 = celui de la grille affichée. */
+  snapUnit: number;
   /** Incrément de l'accrochage polaire (degrés). */
   polarIncrement: number;
   showConstraints: boolean;
@@ -122,10 +131,13 @@ const DEFAULT_SETTINGS: Settings = {
   polar: true,
   osnap: true,
   dyn: true,
+  dynRelative: true,
   lwt: false,
   osnapModes: ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN'],
   infer: true,
   gizmo: true,
+  gridUnit: 0,
+  snapUnit: 0,
   polarIncrement: 15,
   showConstraints: true,
   visualStyle: 'realistic',
@@ -161,6 +173,8 @@ export interface ViewportApi {
   setSection(s: { origin: Vec3; normal: Vec3 } | null, live?: boolean): void;
   /** Plan de travail (grille, icône SCU) à la hauteur z. */
   setWorkPlane(z: number): void;
+  /** Pas de la grille (0 = adaptatif). */
+  setGridUnit(step: number): void;
   /** Direction unitaire cible → caméra. */
   viewDirection(): Vec3;
   readonly section: { origin: Vec3; normal: Vec3 } | null;
@@ -396,6 +410,7 @@ export class AppHost {
       },
     });
     this.processor.selectionSource = () => this.selection.list();
+    this.processor.dynamicRelative = this.settings.dyn && this.settings.dynRelative;
     this.activeTab = this.createTab();
     this.docs.push(this.activeTab);
     this.lastConstraints = this.doc.constraints;
@@ -622,7 +637,9 @@ export class AppHost {
     if (key === 'ortho' && value) this.settings.polar = false;
     if (key === 'polar' && value) this.settings.ortho = false;
     saveSettings(this.settings);
+    this.processor.dynamicRelative = this.settings.dyn && this.settings.dynRelative;
     this.emit('settings');
+    if (key === 'gridUnit' || key === 'snapUnit') this.viewport?.setGridUnit(this.settings.gridUnit);
     if (key === 'projection' && this.settings.workspace === '3d') this.viewport?.setProjection(value as Settings['projection']);
     if (key === 'workspace') {
       // le noyau 3D (≈ 50 Mo de WebAssembly) n'est préchargé qu'en 3D

@@ -5,7 +5,7 @@
  */
 import type { CommandDefinition, Vec3 } from '../../core/commands';
 import type { DrawingSheet, DrawingView, Entity, PaperFormat } from '../../core/document/Document';
-import { curvePoints, dimensionGeometry, dimensionText, entityBBox, hatchSegments, textLayout } from '../../core/entities/geometry';
+import { curvePoints, dimensionGeometry, dimensionLabel, entityBBox, hatchSegments, textLayout } from '../../core/entities/geometry';
 import { patternOf } from '../../core/linetypes';
 import { writePdf, type PdfItem } from '../../io/pdf';
 import { saveFile } from '../../io/fileAccess';
@@ -287,14 +287,11 @@ function pdfItems(app: AppHost, es: Entity[], o: Vec3, k: number, mono: boolean)
     }
     if (e.type === 'DIMENSION') {
       const g = dimensionGeometry(e, app.sysvars.DIMASZ);
-      for (const l of g.lines) items.push({ kind: 'path', pts: l.map(P), stroke: color, width: 0.18 });
       const h = e.textHeight ?? app.sysvars.DIMTXT;
-      let a = g.angle;
-      if (a > Math.PI / 2 + 1e-6 || a < -Math.PI / 2 - 1e-6) a += Math.PI;
-      const line = g.lines[2];
-      const ref = e.dimType === 'radius' || e.dimType === 'diameter' || !line ? e.offsetPoint : { x: (line[0]!.x + line[1]!.x) / 2, y: (line[0]!.y + line[1]!.y) / 2, z: 0 };
-      const at = P({ x: ref.x - Math.sin(a) * h * 0.5, y: ref.y + Math.cos(a) * h * 0.5, z: 0 });
-      items.push({ kind: 'text', x: at[0], y: at[1], size: h / 0.716 / k, text: dimensionText(e, app.sysvars.DIMDEC), angle: a, align: 'center', color });
+      const lab = dimensionLabel(e, h, app.sysvars.DIMASZ, app.sysvars.DIMDEC);
+      for (const l of [...g.lines, ...lab.lines]) items.push({ kind: 'path', pts: l.map(P), stroke: color, width: 0.18 });
+      const at = P(lab.at);
+      items.push({ kind: 'text', x: at[0], y: at[1], size: h / 0.716 / k, text: lab.text, angle: lab.angle, align: 'center', color });
       continue;
     }
     if (e.type === 'HATCH') {

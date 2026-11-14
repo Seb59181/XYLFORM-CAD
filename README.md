@@ -304,8 +304,12 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   arrière et isométrique générées depuis la 3D (projection européenne ou américaine), lignes cachées
   en tirets, axes et centres des perçages, cadre A4 à A0 avec cartouche (titre, matière, échelle, date,
   symbole de projection), échelle automatique. Les vues sont en vraie grandeur : `COTLIN`, `COTALI`,
-  `COTDIA`… donnent les vraies cotes. `MAJVUES` régénère les vues après une modification du modèle,
+  `COTDIA`, `COTANG`, `COTARC`, `COTORD`, `COTCONTINUE`, `COTLIGNEBASE`… donnent les vraies cotes. `MAJVUES` régénère les vues après une modification du modèle,
   `EXPORTPDF` imprime la feuille à l'échelle en PDF vectoriel (`EXPORTDXF` reste possible).
+- **Saisie dynamique à deux cases** (1.1.0) : longueur Tab angle, largeur Tab hauteur (`RECTANGLE`,
+  `BOITE`), coordonnées relatives au point précédent (`#` = absolu, `COORDSDYN`). Pas fixe de la grille
+  et de la résolution (`GRILLE 10`, `RESOL 5`). Vues nommées (`VUESNOMMEES`). Style visuel
+  **Technique** : fond blanc, arêtes cachées en tirets, contours apparents.
 - **Types de ligne** : continu, caché, axe, tirets, fantôme par calque (palette Calques), échelle
   `LTSCALE`, conservés en DXF.
 - **Tôlerie** (`TOLE`, `DEPLIER`, onglet Outils 3D) : tôle de base tirée d'un contour fermé, bords

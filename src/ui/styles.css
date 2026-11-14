@@ -765,6 +765,61 @@ input[type='radio'] {
   color: var(--text-dim);
 }
 
+/* saisie dynamique à deux cases (Longueur Tab Angle, X Tab Y) */
+.dyn-fields {
+  gap: 4px;
+  align-items: stretch;
+}
+
+.dyn-field {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 64px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(37, 43, 51, 0.94);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+.dyn-field small {
+  font-family: var(--ui, inherit);
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.dyn-field.typed {
+  background: #fff;
+  color: #111;
+}
+
+.dyn-field.active {
+  border-color: var(--accent);
+}
+
+.dyn-caret {
+  width: 1px;
+  align-self: stretch;
+  background: currentColor;
+  animation: dyn-blink 1s steps(1) infinite;
+}
+
+@keyframes dyn-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.dyn-hint {
+  align-self: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
 /* --- Ligne de commande -------------------------------------------------------- */
 
 .cmdline {
@@ -3101,4 +3156,50 @@ code {
 .news-all {
   margin-right: auto;
   align-self: center;
+}
+
+/* pas de la grille / de la résolution (barre d'état) */
+.sb-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.sb-step-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 230px;
+}
+
+.sb-step-row button {
+  min-width: 34px;
+  padding: 2px 4px;
+}
+
+.sb-step-row button.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.sb-step-free {
+  width: 56px;
+}
+
+.sb-popup-note {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  max-width: 230px;
+}
+
+.vp-menu-sep {
+  margin-top: 4px;
+  padding: 4px 10px 2px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
 }

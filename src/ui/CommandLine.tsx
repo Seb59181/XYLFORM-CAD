@@ -2,6 +2,7 @@
  * Ligne de commande flottante : historique, invite avec options cliquables,
  * autocomplétion des commandes et des options, historique des saisies (↑ ↓).
  */
+import { dynLayout, tabDyn } from '../core/commands/dynInput';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Keyword } from '../core/commands/types';
 import { useHost } from './context';
@@ -89,6 +90,12 @@ export function CommandLine() {
       submit(value);
     } else if (e.key === 'Tab') {
       e.preventDefault();
+      // saisie dynamique à deux cases : Tab passe de la longueur à l'angle (ou de X à Y)
+      const layout = app.settings.dyn ? dynLayout(spec, app.settings.dynRelative) : null;
+      if (layout && (!suggestions.length || /^[\d.\-+(]/.test(value.trim()))) {
+        app.setInput(tabDyn(value, layout.mode));
+        return;
+      }
       const s = suggestions[sel >= 0 ? sel : 0];
       if (s) app.setInput(s.insert);
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {

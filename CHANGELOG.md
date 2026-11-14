@@ -5,6 +5,25 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.1.0 — 14 novembre 2026
+
+Xylform CAD 1.1.0 : saisie plus rapide, nouvelles cotes et un style « dessin technique ».
+
+- **Saisie dynamique à deux cases** : près du curseur, tapez la **longueur**, **Tab**, l'**angle** (ou la **largeur**, **Tab**, la **hauteur** pour un rectangle). La case remplie est verrouillée : l'aperçu suit la valeur tapée et un clic l'utilise.
+  - **RECTANGLE** : après le 1er coin, `120 Tab 80` (ou `120,80`) dessine un rectangle de 120 × 80 ; une valeur négative le dessine de l'autre côté. Même chose pour le 2e coin de `BOITE` et de `SURFPLANE`.
+  - Les coordonnées tapées après un premier point sont maintenant **relatives** à ce point (le `@` est implicite) ; `#` force l'absolu. Commande **`COORDSDYN`** ou menu ▾ de **DYN** dans la barre d'état pour revenir aux coordonnées absolues.
+- **Pas de la grille et de la résolution réglables** : `GRILLE 10` ou `RESOL 5` (ou le menu ▾ de **GRILLE** dans la barre d'état). Jusqu'ici le pas d'accrochage F9 changeait avec le zoom ; il reste fixe une fois réglé. « Adaptatif » revient à l'ancien comportement.
+- **Vues nommées** (`VUESNOMMEES`, ruban Vue, ou menu de la vue en haut à gauche) : enregistrez un cadrage avec sa projection et son style visuel, rappelez-le en un clic (scènes). Les vues sont enregistrées dans le dessin.
+- **Nouvelles cotes** (onglet Annoter) :
+  - **`COTANG`** cote angulaire : entre deux lignes ou deux côtés de polyligne (l'emplacement choisit le secteur), d'un arc, d'un cercle, ou par sommet et deux points ;
+  - **`COTARC`** longueur d'arc, avec le symbole ⌒ ;
+  - **`COTORD`** cote ordonnée : abscisse ou ordonnée d'un point depuis une origine (option **Origine**, par exemple le coin de la pièce) ;
+  - **`COTCONTINUE`** cotes en série et **`COTLIGNEBASE`** cotes empilées depuis la même origine, à la suite de la dernière cote : il suffit de cliquer les points suivants.
+  - Elles fonctionnent aussi sur les mises en plan, à l'export PDF, SVG et DXF.
+- **Style visuel « Technique »** (Vue › Styles visuels) : dessin au trait sur fond blanc, arêtes noires, **arêtes cachées en tirets** et **contours apparents** des cylindres, sphères et congés. Les objets 2D blancs passent en noir.
+
+---
+
 ## 1.0.0 — 10 novembre 2026
 
 Première version distribuée, sous le nom **Xylform CAD** (anciennement SebCad). Elle reprend tout

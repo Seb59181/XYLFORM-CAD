@@ -83,14 +83,22 @@ export type Entity =
     })
   /**
    * Cote : alignée (p1–p2), linéaire (projection sur la direction `rotation`), rayon ou diamètre
-   * (p1 = centre, p2 = point du cercle). La ligne de cote / le texte passent par `offsetPoint`.
+   * (p1 = centre, p2 = point du cercle), angulaire (sommet `center`, côtés par p1 et p2), longueur
+   * d'arc (centre `center`, arc de p1 à p2) ou ordonnée (p1 mesuré depuis l'origine `center`).
+   * La ligne de cote / le texte passent par `offsetPoint`.
    */
   | (EntityBase & {
       type: 'DIMENSION';
-      dimType?: 'aligned' | 'linear' | 'radius' | 'diameter';
+      dimType?: 'aligned' | 'linear' | 'radius' | 'diameter' | 'angular' | 'arclength' | 'ordinate';
       p1: Vec3;
       p2: Vec3;
       offsetPoint: Vec3;
+      /** Sommet (angulaire), centre de l'arc (longueur d'arc) ou origine (ordonnée). */
+      center?: Vec3;
+      /** Cote angulaire entre deux lignes (les côtés sont des droites : quatre secteurs possibles). */
+      angLines?: boolean;
+      /** Cote ordonnée : coordonnée mesurée (x par défaut). */
+      ordAxis?: 'x' | 'y';
       rotation?: number;
       textOverride?: string;
       textHeight?: number;
@@ -253,6 +261,21 @@ export interface UnderlayDef {
 
 export type EntityType = Entity['type'];
 
+/** Vue nommée : position de caméra (comme `ViewState` de l'application) et style visuel. */
+export interface NamedView {
+  name: string;
+  view: {
+    projection: 'perspective' | 'orthographic';
+    position: Vec3;
+    target: Vec3;
+    up: Vec3;
+    halfHeight: number;
+  };
+  /** Style visuel enregistré avec la vue (réaliste, technique…). */
+  style?: string;
+  workspace?: '2d' | '3d';
+}
+
 /** Entité avant insertion (handle et calque attribués par le document). */
 export type NewEntity = Entity extends infer E ? (E extends Entity ? Omit<E, 'handle' | 'layer'> & { layer?: string } : never) : never;
 
@@ -304,6 +327,8 @@ export class DrawingDocument {
   private nextJoint = 1;
   /** Feuilles de mise en plan. */
   sheets: DrawingSheet[] = [];
+  /** Vues nommées (VUESNOMMEES) : cadrage, projection et style visuel (scènes). */
+  namedViews: NamedView[] = [];
 
   readonly sysvars = {
     CIRCLERAD: 0,
@@ -323,6 +348,11 @@ export class DrawingDocument {
     DIMASZ: 2.5,
     /** Décimales affichées des cotes. */
     DIMDEC: 2,
+    /** Écart entre cotes empilées (COTLIGNEBASE) ; 0 = 2,2 × hauteur du texte. */
+    DIMDLI: 0,
+    /** Origine des cotes ordonnées (COTORD › Origine). */
+    ORDBASEX: 0,
+    ORDBASEY: 0,
     TEXTSIZE: 2.5,
     /** Unités d'insertion : 4 = millimètres. */
     INSUNITS: 4,
@@ -703,6 +733,26 @@ export class DrawingDocument {
     this.emit();
   }
 
+  // --- Vues nommées ---------------------------------------------------------------
+
+  /** Ajoute ou remplace (même nom, sans tenir compte de la casse) une vue nommée. */
+  putNamedView(v: NamedView): void {
+    const i = this.namedViews.findIndex((n) => n.name.toLowerCase() === v.name.toLowerCase());
+    this.namedViews = i < 0 ? [...this.namedViews, v] : this.namedViews.map((n, k) => (k === i ? v : n));
+    this.emit();
+  }
+
+  namedView(name: string): NamedView | undefined {
+    const q = name.trim().toLowerCase();
+    return this.namedViews.find((n) => n.name.toLowerCase() === q);
+  }
+
+  deleteNamedView(name: string): void {
+    const q = name.trim().toLowerCase();
+    this.namedViews = this.namedViews.filter((n) => n.name.toLowerCase() !== q);
+    this.emit();
+  }
+
   saveLayerState(name: string): void {
     this.layerStates = { ...this.layerStates, [name]: this.layers.map((l) => ({ ...l })) };
     this.emit();
@@ -750,6 +800,7 @@ export class DrawingDocument {
     underlays?: Record<string, UnderlayDef>;
     joints?: Joint[];
     sheets?: DrawingSheet[];
+    namedViews?: NamedView[];
   }): void {
     const before = [...this.entities.keys()];
     this.entities = new Map(data.entities.map((e) => [e.handle, e]));
@@ -762,6 +813,7 @@ export class DrawingDocument {
     this.joints = (data.joints ?? []).filter((j) => j.parts.some((p) => this.entities.has(p)));
     this.nextJoint = this.joints.reduce((m, j) => Math.max(m, parseInt(j.id.slice(1)) || 0), 0) + 1;
     this.sheets = data.sheets ?? [];
+    this.namedViews = data.namedViews ?? [];
     this.currentLayer = data.currentLayer && this.layer(data.currentLayer) ? data.currentLayer : '0';
     this.fileName = data.fileName;
     const maxHandle = data.entities.reduce((m, e) => Math.max(m, parseInt(e.handle, 16) || 0), 0xff);

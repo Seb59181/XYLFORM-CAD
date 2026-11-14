@@ -275,9 +275,17 @@ function Geometry({ app, e }: { app: AppHost; e: Entity }) {
     case 'DIMENSION':
       return (
         <>
-          <Row label="Mesure">
-            <NumInput value={dimensionGeometry(e).value} readOnly />
+          <Row label={e.dimType === 'angular' ? 'Mesure (°)' : 'Mesure'}>
+            <NumInput value={e.dimType === 'angular' ? (dimensionGeometry(e).value * 180) / Math.PI : dimensionGeometry(e).value} readOnly />
           </Row>
+          {e.dimType === 'ordinate' && (
+            <Row label="Axe mesuré">
+              <select value={e.ordAxis ?? 'x'} onChange={(ev) => set({ ordAxis: ev.target.value as 'x' | 'y' })}>
+                <option value="x">X (repère vertical)</option>
+                <option value="y">Y (repère horizontal)</option>
+              </select>
+            </Row>
+          )}
           <Row label="Texte remplacé">
             <TextInput value={e.textOverride ?? ''} onCommit={(t) => set({ textOverride: t || undefined })} />
           </Row>
