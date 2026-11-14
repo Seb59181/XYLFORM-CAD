@@ -15,7 +15,7 @@ import {
   circleCircle,
   curvePoints,
   dimensionGeometry,
-  dimensionText,
+  dimensionLabel,
   entityBBox,
   lineCircle,
   nearestOnPolylines,
@@ -575,9 +575,11 @@ export function explodeEntity(e: Entity): NewEntity[] | null {
     case 'DIMENSION': {
       const g = dimensionGeometry(e);
       const out: NewEntity[] = [];
-      for (const l of g.lines) for (let i = 0; i + 1 < l.length; i++) out.push({ ...base, type: 'LINE', start: l[i]!, end: l[i + 1]! });
       const h = e.textHeight ?? 2.5;
-      out.push({ ...base, type: 'TEXT', position: g.textPos, height: h, text: dimensionText(e), rotation: g.angle, align: 'center', valign: 'bottom' });
+      const lab = dimensionLabel(e, h);
+      for (const l of [...g.lines, ...lab.lines]) for (let i = 0; i + 1 < l.length; i++) out.push({ ...base, type: 'LINE', start: l[i]!, end: l[i + 1]! });
+      for (const t of lab.texts) out.push({ ...base, type: 'TEXT', position: t.at, height: t.height, text: t.text, rotation: lab.angle, align: 'center' });
+      for (const f of g.fills) out.push({ ...base, type: 'HATCH', boundaries: [f.slice(0, 3)], pattern: 'SOLID', scale: 1, angle: 0 });
       return out;
     }
     case 'HATCH':
@@ -701,10 +703,16 @@ export function gripsOf(e: Entity): Grip[] {
     case 'UNDERLAY':
       return [{ point: e.position, apply: (p) => ({ position: p }) }];
     case 'DIMENSION':
+      if (e.dimType === 'leader')
+        return [
+          { point: e.p1, apply: (p) => ({ p1: p }) },
+          { point: e.p2, apply: (p) => ({ p2: p, offsetPoint: p }) },
+        ];
       return [
         { point: e.p1, apply: (p) => ({ p1: p }) },
         { point: e.p2, apply: (p) => ({ p2: p }) },
         { point: dimensionGeometry(e).textPos, apply: (p) => ({ offsetPoint: p }) },
+        ...(e.center && e.dimType !== 'ordinate' ? [{ point: e.center, apply: (p: Vec3) => ({ center: p }) }] : []),
       ];
     case 'HELIX':
       return [{ point: e.center, apply: (p) => ({ center: p }) }, { point: polar(e.center, e.baseRadius, 0), apply: (p) => ({ baseRadius: Math.max(1e-6, dist(p, e.center)) }) }];

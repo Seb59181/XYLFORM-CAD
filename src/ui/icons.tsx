@@ -192,6 +192,157 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M8 24l1.5-4.5 3 3zM24 8l-4.5 1.5 3 3z" fill={A} stroke="none" />
     </>
   ),
+  dimangular: (
+    <>
+      <path d="M5 27L27 27M5 27L21 7" />
+      <path d="M19 27a14 14 0 0 0-4.2-10" stroke={A} />
+      {label('°', 24, 19, 10, A)}
+    </>
+  ),
+  dimarc: (
+    <>
+      <path d="M5 25a12 12 0 0 1 22 0" />
+      <path d="M8 20a9 9 0 0 1 16 0" stroke={A} strokeOpacity={0.5} />
+      <path d="M11 12a6 3 0 0 1 10 0" stroke={A} />
+    </>
+  ),
+  dimordinate: (
+    <>
+      <path d="M6 26V6M6 26h20" strokeOpacity={0.5} />
+      <path d="M14 24V12M22 24V8" stroke={A} />
+      {dot(14, 24)}
+      {dot(22, 24)}
+    </>
+  ),
+  dimcontinue: (
+    <>
+      <path d="M4 22V12M16 22V12M28 22V12" strokeOpacity={0.5} />
+      <path d="M4 15h24" stroke={A} />
+      <path d="M4 15l3-1.5v3zM16 15l-3-1.5v3zM16 15l3-1.5v3zM28 15l-3-1.5v3z" fill={A} stroke="none" />
+    </>
+  ),
+  dimbaseline: (
+    <>
+      <path d="M4 26V8M16 26V14M28 26V8" strokeOpacity={0.5} />
+      <path d="M4 18h12M4 11h24" stroke={A} />
+      <path d="M4 18l3-1.5v3zM16 18l-3-1.5v3zM4 11l3-1.5v3zM28 11l-3-1.5v3z" fill={A} stroke="none" />
+    </>
+  ),
+  dimstyle: (
+    <>
+      <path d="M4 12h24" stroke={A} />
+      <path d="M4 12l4-2v4zM28 12l-4-2v4z" fill={A} stroke="none" />
+      <path d="M4 8v8M28 8v8" strokeOpacity={0.5} />
+      <path d="M6 22h20M6 27h12" strokeOpacity={0.7} />
+    </>
+  ),
+  leader: (
+    <>
+      <path d="M5 27L15 13h12" stroke={A} />
+      <path d="M5 27l1.5-5 3 2.2z" fill={A} stroke="none" />
+      <path d="M17 9h10" strokeOpacity={0.6} />
+    </>
+  ),
+  label: (
+    <>
+      <rect x={13} y={4} width={16} height={9} rx={1.5} stroke={A} />
+      <path d="M13 13L6 24" stroke={A} />
+      {dot(6, 24)}
+      <path d="M4 28h14l-4-8H8z" strokeOpacity={0.5} />
+    </>
+  ),
+  tapeguide: (
+    <>
+      <path d="M2 22h28" stroke={A} strokeDasharray="3 2" />
+      <rect x={5} y={6} width={12} height={10} rx={2} />
+      <path d="M17 13h9v3h-9" />
+      <path d="M11 9v4" strokeOpacity={0.6} />
+    </>
+  ),
+  protractor: (
+    <>
+      <path d="M4 24h24a12 12 0 0 0-24 0z" />
+      <path d="M16 24L26 8" stroke={A} strokeDasharray="3 2" />
+      {dot(16, 24)}
+    </>
+  ),
+  block: (
+    <>
+      <path d="M16 4l11 6v12l-11 6-11-6V10z" />
+      <path d="M5 10l11 6 11-6M16 16v12" stroke={A} />
+    </>
+  ),
+  insert: (
+    <>
+      <path d="M18 8l9 5v10l-9 5-9-5V13z" strokeOpacity={0.6} />
+      <path d="M3 4l8 8M11 6v6H5" stroke={A} />
+    </>
+  ),
+  components: (
+    <>
+      <rect x={4} y={4} width={10} height={10} />
+      <rect x={18} y={4} width={10} height={10} stroke={A} />
+      <rect x={4} y={18} width={10} height={10} stroke={A} />
+      <rect x={18} y={18} width={10} height={10} />
+    </>
+  ),
+  sectionplane: (
+    <>
+      <path d="M6 10l14-4 6 6v14l-14 4-6-6z" strokeOpacity={0.5} />
+      <path d="M4 16l18-6v12L4 28z" stroke={A} fill="rgba(255,170,60,0.25)" />
+    </>
+  ),
+  scene: (
+    <>
+      <rect x={3} y={8} width={20} height={16} rx={2} />
+      <path d="M23 13l6-3v12l-6-3" stroke={A} />
+      <path d="M7 20l5-6 4 4 3-3 2 5" strokeOpacity={0.6} />
+    </>
+  ),
+  present: (
+    <>
+      <rect x={3} y={5} width={26} height={17} rx={1.5} />
+      <path d="M13 9.5v8l7-4z" fill={A} stroke="none" />
+      <path d="M16 22v5M10 28h12" />
+    </>
+  ),
+  balloon: (
+    <>
+      <circle cx={20} cy={11} r={7} stroke={A} />
+      <path d="M15 16L5 26" />
+      {dot(5, 26)}
+      <path d="M18.5 8.5l2-1.5v8" strokeOpacity={0.8} />
+    </>
+  ),
+  bom: (
+    <>
+      <rect x={4} y={5} width={24} height={22} />
+      <path d="M4 11h24M4 17h24M4 22h24M10 5v22" strokeOpacity={0.6} />
+      <path d="M4 11h24" stroke={A} />
+    </>
+  ),
+  detailview: (
+    <>
+      <circle cx={10} cy={12} r={6} stroke={A} strokeDasharray="3 2" />
+      <circle cx={22} cy={22} r={7} />
+      <path d="M15 16l3 2" stroke={A} />
+    </>
+  ),
+  sectionview: (
+    <>
+      <path d="M4 6v20M28 6v20" stroke={A} />
+      <path d="M2 6h5M25 6h5" stroke={A} />
+      <rect x={9} y={10} width={14} height={12} />
+      <path d="M9 18l4-8M13 22l8-12M18 22l5-9" strokeOpacity={0.6} />
+    </>
+  ),
+  holecallout: (
+    <>
+      <circle cx={9} cy={22} r={5} />
+      <path d="M12 19l6-9h10" stroke={A} />
+      <path d="M19 7h3M24 7h4" strokeOpacity={0.7} />
+    </>
+  ),
   // --- Modification -------------------------------------------------------------------
   move: (
     <path d="M16 4v24M4 16h24M16 4l-3 4h6zM16 28l-3-4h6zM4 16l4-3v6zM28 16l-4-3v6z" fill="currentColor" />
@@ -618,6 +769,21 @@ export const ICONS: Record<string, JSX.Element> = {
       <circle cx={16} cy={16} r={11} fill="url(#ico-sph)" />
     </>
   ),
+  'vs-technical': (
+    <>
+      <rect x={4} y={4} width={24} height={24} rx={2} fill="#f4f4f0" stroke="none" />
+      <path d="M8 22l8-4 8 4-8 4zM8 22V12l8-4 8 4v10M16 18V8" stroke="#111" />
+      <path d="M8 12l8 4 8-4" stroke="#111" strokeDasharray="2 1.6" strokeOpacity={0.7} />
+    </>
+  ),
+  'named-views': (
+    <>
+      <rect x={4} y={9} width={18} height={14} rx={2} />
+      <path d="M22 13l6-3v12l-6-3z" />
+      <path d="M8 27h10" stroke={A} />
+      {dot(13, 16, A)}
+    </>
+  ),
   'vs-shaded': <circle cx={16} cy={16} r={11} fill={F2} stroke="none" />,
   'vs-wire': (
     <>
@@ -912,6 +1078,7 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M16 3v4M16 25v4M3 16h4M25 16h4M7 7l3 3M22 22l3 3M7 25l3-3M22 10l3-3" stroke={Y} />
     </>
   ),
+  moon: <path d="M21 4a12 12 0 1 0 7 17A10 10 0 0 1 21 4z" fill="#9fb4d8" stroke="none" />,
   snow: <path d="M16 3v26M5 9.5l22 13M5 22.5l22-13M13 5l3 3 3-3M13 27l3-3 3 3" stroke="#79c0ff" />,
   'lock-open': (
     <>

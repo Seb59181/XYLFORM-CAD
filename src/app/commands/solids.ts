@@ -155,6 +155,8 @@ const box = cmd('BOX', 'BOITE', ['BO'], 'Crée un parallélépipède', async (ct
     a = r.point!;
     const q = await getPointOrKeyword(ctx, 'Spécifiez l’autre coin', {
       basePoint: a,
+      dynBase: a,
+      dynLabels: ['Longueur', 'Largeur'],
       noRubberBand: true,
       keywords: [kw('Cube', 'Cube', 'C'), kw('Length', 'Longueur', 'L')],
       preview: (p) => rect(a, p),
@@ -797,7 +799,7 @@ const planeSurf = cmd('PLANESURF', 'SURFPLANE', ['SP'], 'Surface plane (rectangl
   const r = await getPointOrKeyword(ctx, 'Spécifiez le premier coin', { keywords: [kw('Object', 'Objet', 'O')], defaultValue: 'Object' });
   if (r.point) {
     const a = r.point;
-    const b = await getPoint(ctx, 'Spécifiez l’autre coin', { noRubberBand: true, preview: (p) => boxWire(a, p, 0).slice(0, 1) });
+    const b = await getPoint(ctx, 'Spécifiez l’autre coin', { noRubberBand: true, dynBase: a, dynLabels: ['Largeur', 'Hauteur'], preview: (p) => boxWire(a, p, 0).slice(0, 1) });
     const pts = boxWire(a, { ...b, z: a.z }, 0)[0]!.slice(0, 4);
     app.addSolid(await app.solid(ctx, { op: 'planeSurface', profile: { kind: 'poly', points: pts, closed: true } }), 'Surface plane', undefined, ctx);
     return;

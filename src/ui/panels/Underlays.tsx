@@ -10,7 +10,7 @@ import { bindUnderlay, reloadUnderlay, underlayKindLabel, zoomUnderlay } from '.
 import { Icon } from '../icons';
 import { useHost } from '../context';
 
-const KIND_ICON: Record<UnderlayDef['kind'], string> = { dwg: 'dwg', dxf: 'dxf', pdf: 'pdf', image: 'image' };
+const KIND_ICON: Record<UnderlayDef['kind'], string> = { dwg: 'dwg', dxf: 'dxf', pdf: 'pdf', image: 'image', block: 'block' };
 
 const size = (d: UnderlayDef) => {
   const w = d.bounds.max.x - d.bounds.min.x, h = d.bounds.max.y - d.bounds.min.y;
@@ -21,7 +21,8 @@ const size = (d: UnderlayDef) => {
 export function UnderlaysPanel() {
   const app = useHost(['doc']);
   const doc = app.doc;
-  const defs = Object.values(doc.underlays).sort((a, b) => a.name.localeCompare(b.name));
+  // les blocs du dessin (BLOC) ont leur propre commande : la palette ne montre que les fonds
+  const defs = Object.values(doc.underlays).filter((d) => d.kind !== 'block').sort((a, b) => a.name.localeCompare(b.name));
   const [selectedId, setSelected] = useState<string | null>(null);
   const sel = (selectedId && doc.underlays[selectedId]) || defs[0] || null;
   const [layerFilter, setLayerFilter] = useState('');

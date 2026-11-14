@@ -85,7 +85,7 @@ function LayoutTabs() {
   );
 }
 
-const MODES: SnapKind[] = ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN', 'NEA'];
+const MODES: SnapKind[] = ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN', 'EXT', 'PAR', 'NEA'];
 const POLAR = [5, 10, 15, 18, 22.5, 30, 45, 90];
 
 function Popup({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
@@ -102,15 +102,48 @@ function Popup({ onClose, children }: { onClose: () => void; children: React.Rea
   );
 }
 
+const STEPS = [0.1, 0.5, 1, 2, 5, 10, 25, 50, 100];
+
+/** Choix d'un pas : 0 (automatique), valeurs courantes ou valeur libre. */
+function StepChoice({ value, auto, onChange }: { value: number; auto: string; onChange: (v: number) => void }) {
+  const [free, setFree] = useState(value > 0 && !STEPS.includes(value) ? String(value) : '');
+  return (
+    <div className="sb-steps">
+      <label>
+        <input type="radio" checked={value === 0} onChange={() => onChange(0)} />
+        {auto}
+      </label>
+      <div className="sb-step-row">
+        {STEPS.map((v) => (
+          <button key={v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>
+            {String(v).replace('.', ',')}
+          </button>
+        ))}
+        <input
+          className="sb-step-free"
+          placeholder="autre"
+          value={free}
+          onChange={(e) => setFree(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            const v = parseFloat(free.replace(',', '.'));
+            if (v > 0) onChange(v);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function StatusBar() {
   const app = useHost(['settings', 'cursor', 'kernel', 'constraints', 'selection', 'doc']);
   const it = useInteraction();
-  const [pop, setPop] = useState<null | 'osnap' | 'polar' | 'vports' | 'custom'>(null);
+  const [pop, setPop] = useState<null | 'osnap' | 'polar' | 'vports' | 'custom' | 'grid' | 'dyn'>(null);
   const s = app.settings;
   const shown = (id: string) => !s.statusHidden.includes(id);
   const w = app.cursor.world;
   const k = app.kernel;
-  const toggle = (key: Parameters<typeof app.toggle>[0], label: string, title: string, menu?: 'osnap' | 'polar') =>
+  const toggle = (key: Parameters<typeof app.toggle>[0], label: string, title: string, menu?: 'osnap' | 'polar' | 'grid' | 'dyn') =>
     shown(key) && (
     <div className="sb-group">
       <button className={`sb-toggle ${s[key] ? 'on' : ''}`} onClick={() => app.toggle(key)} title={title}>
@@ -138,14 +171,14 @@ export function StatusBar() {
         {it?.navMode && <span className="sb-nav">{it.navMode === 'orbit' ? 'ORBITE' : 'PANORAMIQUE'} — Échap pour quitter</span>}
       </div>
       <div className="sb-right">
-        {toggle('grid', 'GRILLE', 'Grille (F7)')}
-        {toggle('snap', 'RESOL', 'Accrochage à la grille (F9)')}
+        {toggle('grid', s.gridUnit > 0 ? `GRILLE ${s.gridUnit}` : 'GRILLE', 'Grille (F7) ; ▾ : pas de la grille et de la résolution', 'grid')}
+        {toggle('snap', s.snap && (s.snapUnit || s.gridUnit) ? `RESOL ${s.snapUnit || s.gridUnit}` : 'RESOL', 'Accrochage à la grille (F9)')}
         {toggle('ortho', 'ORTHO', 'Mode orthogonal (F8)')}
         {toggle('polar', `POLAIRE ${s.polarIncrement}°`, 'Repérage polaire (F10)', 'polar')}
         {toggle('osnap', 'ACCROBJ', 'Accrochage aux objets (F3)', 'osnap')}
         {toggle('infer', 'REPOBJ', 'Repérage et inférences (F11) : axes X/Y/Z en couleur, alignements sur les points accrochés, accrochage sur les faces en 3D')}
         {app.settings.workspace === '3d' && toggle('gizmo', 'GIZMO', 'Manipulateur 3D : flèches (déplacer) et anneaux (pivoter) sur la sélection')}
-        {toggle('dyn', 'DYN', 'Saisie dynamique (F12)')}
+        {toggle('dyn', 'DYN', 'Saisie dynamique (F12) : tapez la longueur, Tab, l’angle (ou largeur Tab hauteur)', 'dyn')}
         {toggle('lwt', 'EP', 'Afficher les épaisseurs de ligne')}
         {toggle('showConstraints', 'CONTR', 'Afficher les contraintes')}
         {app.doc.constraints.length > 0 && <span className={`sb-dof ${app.constraintStatus.ok ? '' : 'bad'}`}>{app.constraintStatus.ok ? `DDL ${app.constraintStatus.dof}` : 'Conflit'}</span>}
@@ -219,6 +252,28 @@ export function StatusBar() {
             <button onClick={() => app.set('osnapModes', MODES.filter((m) => m !== 'NEA'))}>Tous</button>
             <button onClick={() => app.set('osnapModes', [])}>Aucun</button>
           </div>
+        </Popup>
+      )}
+      {pop === 'grid' && (
+        <Popup onClose={() => setPop(null)}>
+          <div className="sb-popup-title">Pas de la grille</div>
+          <StepChoice value={s.gridUnit} auto="Adaptatif (suit le zoom)" onChange={(v) => app.set('gridUnit', v)} />
+          <div className="sb-popup-title">Pas de la résolution (F9)</div>
+          <StepChoice value={s.snapUnit} auto="Comme la grille" onChange={(v) => (app.set('snapUnit', v), s.snap || app.toggle('snap'))} />
+        </Popup>
+      )}
+      {pop === 'dyn' && (
+        <Popup onClose={() => setPop(null)}>
+          <div className="sb-popup-title">Saisie dynamique</div>
+          <label>
+            <input type="radio" checked={s.dynRelative} onChange={() => app.set('dynRelative', true)} />
+            Coordonnées relatives (# pour l’absolu)
+          </label>
+          <label>
+            <input type="radio" checked={!s.dynRelative} onChange={() => app.set('dynRelative', false)} />
+            Coordonnées absolues (@ pour le relatif)
+          </label>
+          <div className="sb-popup-note">Tab passe de la longueur à l’angle, ou de la largeur à la hauteur.</div>
         </Popup>
       )}
       {pop === 'polar' && (

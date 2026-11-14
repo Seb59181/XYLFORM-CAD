@@ -18,6 +18,7 @@ import {
   trimEntity,
 } from '../../core/entities/edit';
 import { curvePoints, offsetEntity } from '../../core/entities/geometry';
+import { underlayEntities } from '../../core/entities/underlay';
 export { outlines };
 import { add, angleXY, apply, dist, mirrorLine, rotationZ, scaling, sub, translation, type Affine } from '../../core/math/affine';
 import type { AppHost } from '../AppHost';
@@ -194,6 +195,15 @@ function stretchPatch(e: Entity, inside: (p: Vec3) => boolean, d: Vec3): Partial
     case 'SPLINE':
       return e.fitPoints.some(inside) ? { fitPoints: e.fitPoints.map(mv) } : null;
     case 'DIMENSION':
+      if (e.dimType === 'angular' || e.dimType === 'arclength' || e.dimType === 'ordinate') {
+        // sommet / centre / origine solidaires : étirés seulement s'ils sont dans la fenêtre
+        const patch: Partial<Extract<Entity, { type: 'DIMENSION' }>> = {};
+        if (inside(e.p1)) patch.p1 = mv(e.p1);
+        if (inside(e.p2)) patch.p2 = mv(e.p2);
+        if (inside(e.offsetPoint)) patch.offsetPoint = mv(e.offsetPoint);
+        if (e.center && inside(e.center)) patch.center = mv(e.center);
+        return Object.keys(patch).length ? patch : null;
+      }
       return inside(e.p1) || inside(e.p2) || inside(e.offsetPoint) ? { p1: mv(e.p1), p2: mv(e.p2), offsetPoint: mv(e.offsetPoint) } : null;
     case 'HATCH':
       return e.boundaries.some((b) => b.some(inside)) ? { boundaries: e.boundaries.map((b) => b.map(mv)) } : null;
@@ -406,12 +416,15 @@ const join = cmd('JOIN', 'JOINDRE', ['J'], 'Joint lignes, arcs et polylignes con
   ctx.print(`${consumed.length} objets joints en ${result.length} polyligne(s).`);
 });
 
-const explode = cmd('EXPLODE', 'DECOMPOS', ['X'], 'Décompose polylignes, cotes et hachures', async (ctx, app) => {
-  const hs = await selectObjects(ctx, 'Choisissez les objets', is('POLYLINE', 'DIMENSION', 'HATCH'));
+const explode = cmd('EXPLODE', 'DECOMPOS', ['X'], 'Décompose polylignes, cotes, hachures et copies de blocs', async (ctx, app) => {
+  const isBlock = (e: Entity) => e.type === 'UNDERLAY' && app.doc.underlays[e.ref]?.kind === 'block';
+  const hs = await selectObjects(ctx, 'Choisissez les objets', (e) => is('POLYLINE', 'DIMENSION', 'HATCH')(e) || isBlock(e));
   let n = 0;
   app.doc.transaction('Décomposer', () => {
     for (const h of hs) {
-      const parts = explodeEntity(app.doc.get(h)!);
+      const e = app.doc.get(h)!;
+      // copie de bloc : ses objets deviennent indépendants (sur leurs calques d'origine)
+      const parts = isBlock(e) && e.type === 'UNDERLAY' ? underlayEntities(e, app.doc.underlays[e.ref]!).map(({ handle: _h, ...rest }) => rest as NewEntity) : explodeEntity(e);
       if (!parts) continue;
       app.doc.removeEntity(h);
       parts.forEach((p) => app.addEntity(p));

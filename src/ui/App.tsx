@@ -72,6 +72,9 @@ function TitleBar() {
   const ws = app.settings.workspace;
   const title = `${doc.fileName}${doc.dirty ? ' *' : ''}`;
   useEffect(() => {
+    document.documentElement.dataset.theme = app.settings.uiTheme;
+  }, [app.settings.uiTheme]);
+  useEffect(() => {
     document.title = `${title} — Xylform CAD`;
   }, [title]);
   const q = (icon: string, label: string, cmd: string, disabled = false) => (
@@ -119,6 +122,9 @@ function TitleBar() {
         {panel('underlays', 'xref-palette', 'Fonds de plan (REFEXT)')}
         {panel('browser', 'browser', 'Navigateur : corps, esquisses, fonds de plan')}
         {panel('parts', 'parts', 'Bibliothèque de pièces (vis, écrous, tubes, profilés, boîtes)')}
+        <button className="tb-btn" title={app.settings.uiTheme === 'light' ? 'Barres en thème sombre' : 'Barres en thème clair'} onClick={() => app.set('uiTheme', app.settings.uiTheme === 'light' ? 'dark' : 'light')}>
+          <Icon name={app.settings.uiTheme === 'light' ? 'moon' : 'sun'} size={18} />
+        </button>
         <button className="tb-btn" title="Aide (F1)" onClick={() => app.ui.showHelp()}>
           <Icon name="help" size={18} />
         </button>

@@ -12,6 +12,7 @@ import type { Constraint, NewConstraint } from '../constraints/types';
 import { isIsometry, multiply } from '../math/affine';
 import type { HoleSpec } from '../geometry/holes';
 import type { Linetype } from '../linetypes';
+import { assocPoint } from '../entities/geometry';
 
 export interface LayerDef {
   name: string;
@@ -40,7 +41,8 @@ export type TextVAlign = 'baseline' | 'bottom' | 'middle' | 'top';
 export type HatchPattern = 'SOLID' | 'ANSI31' | 'ANSI37' | 'NET' | 'GRADIENT';
 
 export type Entity =
-  | (EntityBase & { type: 'LINE'; start: Vec3; end: Vec3 })
+  /** `guide` : ligne de construction, très longue, ni imprimée ni exportée. */
+  | (EntityBase & { type: 'LINE'; start: Vec3; end: Vec3; guide?: boolean })
   | (EntityBase & { type: 'CIRCLE'; center: Vec3; radius: number })
   /** Arc dans le sens trigonométrique de startAngle à endAngle (radians). */
   | (EntityBase & { type: 'ARC'; center: Vec3; radius: number; startAngle: number; endAngle: number })
@@ -83,14 +85,43 @@ export type Entity =
     })
   /**
    * Cote : alignée (p1–p2), linéaire (projection sur la direction `rotation`), rayon ou diamètre
-   * (p1 = centre, p2 = point du cercle). La ligne de cote / le texte passent par `offsetPoint`.
+   * (p1 = centre, p2 = point du cercle), angulaire (sommet `center`, côtés par p1 et p2), longueur
+   * d'arc (centre `center`, arc de p1 à p2) ou ordonnée (p1 mesuré depuis l'origine `center`).
+   * La ligne de cote / le texte passent par `offsetPoint`.
    */
   | (EntityBase & {
       type: 'DIMENSION';
-      dimType?: 'aligned' | 'linear' | 'radius' | 'diameter';
+      dimType?: 'aligned' | 'linear' | 'radius' | 'diameter' | 'angular' | 'arclength' | 'ordinate' | 'leader';
       p1: Vec3;
       p2: Vec3;
       offsetPoint: Vec3;
+      /** Sommet (angulaire), centre de l'arc (longueur d'arc) ou origine (ordonnée). */
+      center?: Vec3;
+      /** Cote angulaire entre deux lignes (les côtés sont des droites : quatre secteurs possibles). */
+      angLines?: boolean;
+      /** Cote ordonnée : coordonnée mesurée (x par défaut). */
+      ordAxis?: 'x' | 'y';
+      /**
+       * Repère (dimType « leader ») : flèche en p1, coude en p2, texte `textOverride` (plusieurs
+       * lignes possibles) ou étiquette calculée sur l'objet `labelOf` (aire, longueur…).
+       */
+      label?: LabelKind;
+      labelOf?: string;
+      /** Repère en bulle (numéro de nomenclature entouré). */
+      balloon?: boolean;
+      /** Cote ou repère dans l'espace (3D) : géométrie dans le plan des points, texte face à l'écran. */
+      dim3d?: boolean;
+      /** Style de cote (STYLECOTE) ; absent = style courant « Standard ». */
+      dimStyle?: string;
+      /** Tolérance propre à la cote (remplace celle du style). */
+      tol?: 'none' | 'symmetric' | 'deviation' | 'limits';
+      tolPlus?: number;
+      tolMinus?: number;
+      /**
+       * Cote associative : objets et points accrochés (extrémité, milieu, centre, sommet n°…).
+       * La cote suit quand l'objet est modifié ; supprimée l'association si l'objet disparaît.
+       */
+      assoc?: DimAssoc[];
       rotation?: number;
       textOverride?: string;
       textHeight?: number;
@@ -190,6 +221,13 @@ export interface DrawingView {
   axes: boolean;
   /** Entités générées (arêtes, axes, titre). */
   handles: string[];
+  /**
+   * Vue en coupe : plan de coupe (point et normale vers la matière gardée), lettre, vue d'où la
+   * coupe est tracée et entités du trait de coupe sur cette vue.
+   */
+  section?: { origin: Vec3; normal: Vec3; label: string; parent: string; marks: string[] };
+  /** Vue de détail : agrandissement d'un cercle (centre et rayon dans le dessin) d'une autre vue. */
+  detail?: { parent: string; center: Vec3; radius: number; scale: number; label: string; marks: string[] };
 }
 
 export type PaperFormat = 'A4' | 'A3' | 'A2' | 'A1' | 'A0';
@@ -208,6 +246,8 @@ export interface DrawingSheet {
   title: string;
   frame: string[];
   views: DrawingView[];
+  /** Nomenclature : coin haut gauche du tableau et ses entités (régénérée avec MAJVUES). */
+  bom?: { at: Vec3; handles: string[] };
 }
 
 export interface Bounds {
@@ -215,7 +255,8 @@ export interface Bounds {
   max: Vec3;
 }
 
-export type UnderlayKind = 'dwg' | 'dxf' | 'pdf' | 'image';
+/** « block » : bloc / composant du dessin (BLOC), copies liées par INSERER. */
+export type UnderlayKind = 'dwg' | 'dxf' | 'pdf' | 'image' | 'block';
 
 /**
  * Définition d'un fond de plan : contenu d'un DWG/DXF (entités dans leurs propres coordonnées,
@@ -252,6 +293,59 @@ export interface UnderlayDef {
 }
 
 export type EntityType = Entity['type'];
+
+const isLinked = (e: Entity) => e.type === 'DIMENSION' && (!!e.assoc?.length || !!e.labelOf);
+
+/** Lien d'un point de cote vers un objet : `field` de la cote, `ref` = point repéré de l'objet. */
+export interface DimAssoc {
+  field: 'p1' | 'p2' | 'center';
+  handle: string;
+  /** 'start', 'end', 'mid', 'center', 'v3' (sommet 3 d'une polyligne), 'q0'..'q3' (quadrants). */
+  ref: string;
+}
+
+/** Style de cote nommé (STYLECOTE). */
+/** Contenu d'une étiquette : automatique (aire si fermé, sinon longueur…), ou valeur imposée. */
+export type LabelKind = 'auto' | 'area' | 'length' | 'name' | 'coords' | 'volume' | 'radius' | 'item';
+
+export interface DimStyleDef {
+  name: string;
+  arrow?: 'closed' | 'open' | 'oblique' | 'dot' | 'none';
+  arrowSize?: number;
+  decimals?: number;
+  sep?: '.' | ',';
+  prefix?: string;
+  suffix?: string;
+  tol?: 'none' | 'symmetric' | 'deviation' | 'limits';
+  tolPlus?: number;
+  tolMinus?: number;
+}
+
+/** Vue nommée : position de caméra (comme `ViewState` de l'application) et style visuel. */
+export interface NamedView {
+  name: string;
+  view: {
+    projection: 'perspective' | 'orthographic';
+    position: Vec3;
+    target: Vec3;
+    up: Vec3;
+    halfHeight: number;
+  };
+  /** Style visuel enregistré avec la vue (réaliste, technique…). */
+  style?: string;
+  workspace?: '2d' | '3d';
+  /** Scène : calques visibles (les autres masqués au rappel) et plan de coupe actif (null = aucun). */
+  layersOn?: string[];
+  section?: string | null;
+}
+
+/** Plan de coupe enregistré (PLANCOUPE) : la matière du côté de `normal` reste visible. */
+export interface SectionPlaneDef {
+  id: string;
+  name: string;
+  origin: Vec3;
+  normal: Vec3;
+}
 
 /** Entité avant insertion (handle et calque attribués par le document). */
 export type NewEntity = Entity extends infer E ? (E extends Entity ? Omit<E, 'handle' | 'layer'> & { layer?: string } : never) : never;
@@ -304,6 +398,14 @@ export class DrawingDocument {
   private nextJoint = 1;
   /** Feuilles de mise en plan. */
   sheets: DrawingSheet[] = [];
+  /** Vues nommées (VUESNOMMEES) : cadrage, projection et style visuel (scènes). */
+  namedViews: NamedView[] = [];
+  /** Plans de coupe enregistrés et plan actif (affiché dans la vue). */
+  sectionPlanes: SectionPlaneDef[] = [];
+  activeSection: string | null = null;
+  /** Styles de cote nommés et style courant (les nouvelles cotes le prennent). */
+  dimStyles: Record<string, DimStyleDef> = { Standard: { name: 'Standard' } };
+  currentDimStyle = 'Standard';
 
   readonly sysvars = {
     CIRCLERAD: 0,
@@ -323,6 +425,11 @@ export class DrawingDocument {
     DIMASZ: 2.5,
     /** Décimales affichées des cotes. */
     DIMDEC: 2,
+    /** Écart entre cotes empilées (COTLIGNEBASE) ; 0 = 2,2 × hauteur du texte. */
+    DIMDLI: 0,
+    /** Origine des cotes ordonnées (COTORD › Origine). */
+    ORDBASEX: 0,
+    ORDBASEY: 0,
     TEXTSIZE: 2.5,
     /** Unités d'insertion : 4 = millimètres. */
     INSUNITS: 4,
@@ -452,6 +559,7 @@ export class DrawingDocument {
     const handle = (this.nextHandle++).toString(16).toUpperCase();
     const entity = { ...e, layer: e.layer ?? this.currentLayer, handle } as Entity;
     this.entities.set(handle, entity);
+    if (isLinked(entity)) this.linked = true;
     this.pendingChange.touched.add(handle);
     if (!this.openTx) this.emit();
     return handle;
@@ -460,6 +568,7 @@ export class DrawingDocument {
   removeEntity(handle: string): void {
     if (!this.entities.has(handle)) return;
     this.touch('Effacer');
+    this.unlink(handle, this.labelTextOf);
     this.entities.delete(handle);
     this.pendingChange.removed.add(handle);
     // les contraintes qui portaient sur l'entité disparaissent avec elle
@@ -484,8 +593,70 @@ export class DrawingDocument {
     if (next.type === '3DSOLID' && (('shapeId' in patch && !('threadsReal' in patch)) || ('threadsReal' in patch && !patch.threadsReal))) delete next.threadsReal;
     this.entities.set(handle, next);
     this.pendingChange.touched.add(handle);
+    if (isLinked(next)) this.linked = true;
+    this.followLinks(handle);
     if (!this.openTx) this.emit();
   }
+
+  /**
+   * Cotes associatives et étiquettes : quand l'objet `handle` change, les cotes accrochées à ses
+   * points suivent (la ligne de cote se déplace avec l'objet s'il est simplement déplacé) et les
+   * étiquettes sont recalculées.
+   */
+  private followLinks(handle: string, depth = 0): void {
+    const target = this.entities.get(handle);
+    if (!target || !this.linked || depth > 2) return;
+    for (const d of this.entities.values()) {
+      if (d.type !== 'DIMENSION' || d.handle === handle) continue;
+      if (d.labelOf === handle) this.pendingChange.touched.add(d.handle);
+      const links = d.assoc?.filter((a) => a.handle === handle);
+      if (!links?.length) continue;
+      const patch: Partial<Record<'p1' | 'p2' | 'center' | 'offsetPoint', Vec3>> = {};
+      const deltas: Vec3[] = [];
+      for (const a of links) {
+        const p = assocPoint(target, a.ref);
+        const old = d[a.field];
+        if (!p || !old) continue;
+        deltas.push({ x: p.x - old.x, y: p.y - old.y, z: p.z - old.z });
+        patch[a.field] = p;
+      }
+      if (!deltas.length) continue;
+      // tous les points accrochés bougent du même vecteur (et ce sont tous les points de la cote) : translation
+      const all = (d.assoc ?? []).length === links.length;
+      const t = deltas[0]!;
+      if (all && deltas.every((v) => Math.abs(v.x - t.x) + Math.abs(v.y - t.y) + Math.abs(v.z - t.z) < 1e-9)) {
+        patch.offsetPoint = { x: d.offsetPoint.x + t.x, y: d.offsetPoint.y + t.y, z: d.offsetPoint.z + t.z };
+        if (d.center && !links.some((a) => a.field === 'center')) patch.center = { x: d.center.x + t.x, y: d.center.y + t.y, z: d.center.z + t.z };
+      }
+      if (deltas.every((v) => Math.abs(v.x) + Math.abs(v.y) + Math.abs(v.z) < 1e-12)) continue;
+      this.entities.set(d.handle, { ...d, ...patch } as Entity);
+      this.pendingChange.touched.add(d.handle);
+    }
+  }
+
+  /** L'objet disparaît : ses cotes ne lui sont plus associées, ses étiquettes gardent leur dernier texte. */
+  private unlink(handle: string, lastText: (d: Entity) => string | undefined): void {
+    if (!this.linked) return;
+    for (const d of [...this.entities.values()]) {
+      if (d.type !== 'DIMENSION') continue;
+      if (d.labelOf === handle) {
+        const text = lastText(d);
+        this.entities.set(d.handle, { ...d, labelOf: undefined, label: undefined, textOverride: text ?? d.textOverride } as Entity);
+        this.pendingChange.touched.add(d.handle);
+      }
+      if (d.assoc?.some((a) => a.handle === handle)) {
+        const assoc = d.assoc.filter((a) => a.handle !== handle);
+        this.entities.set(d.handle, { ...(this.entities.get(d.handle) as Entity), assoc: assoc.length ? assoc : undefined } as Entity);
+        this.pendingChange.touched.add(d.handle);
+      }
+    }
+  }
+
+  /** Au moins une cote associative ou une étiquette (sinon pas de recherche de dépendances). */
+  private linked = false;
+
+  /** Texte d'étiquette conservé quand son objet est effacé (fourni par l'application). */
+  labelTextOf: (d: Entity) => string | undefined = () => undefined;
 
   /**
    * Écriture du solveur de contraintes : rattachée à la dernière étape d'annulation
@@ -498,6 +669,11 @@ export class DrawingDocument {
       const e = this.entities.get(handle);
       if (e) this.entities.set(handle, { ...e, ...patch, handle } as Entity), touched.add(handle);
     }
+    // cotes associatives des objets déplacés par le solveur
+    const before = this.pendingChange;
+    this.pendingChange = { touched, removed: new Set() };
+    for (const h of patches.keys()) this.followLinks(h);
+    this.pendingChange = before;
     this.version++;
     for (const fn of this.listeners) fn({ touched, removed: new Set() });
   }
@@ -703,6 +879,62 @@ export class DrawingDocument {
     this.emit();
   }
 
+  // --- Styles de cote -------------------------------------------------------------
+
+  putDimStyle(st: DimStyleDef): void {
+    this.dimStyles = { ...this.dimStyles, [st.name]: st };
+    // les cotes de ce style sont à redessiner
+    for (const e of this.entities.values()) if (e.type === 'DIMENSION' && (e.dimStyle ?? 'Standard') === st.name) this.pendingChange.touched.add(e.handle);
+    this.emit();
+  }
+
+  dimStyleFor(e: Entity): DimStyleDef | undefined {
+    return e.type === 'DIMENSION' ? (this.dimStyles[e.dimStyle ?? 'Standard'] ?? this.dimStyles.Standard) : undefined;
+  }
+
+  // --- Vues nommées ---------------------------------------------------------------
+
+  /** Ajoute ou remplace un plan de coupe (hors annulation, comme les vues nommées). */
+  putSectionPlane(p: SectionPlaneDef, activate = true): void {
+    const i = this.sectionPlanes.findIndex((x) => x.id === p.id);
+    this.sectionPlanes = i < 0 ? [...this.sectionPlanes, p] : this.sectionPlanes.map((x, k) => (k === i ? p : x));
+    if (activate) this.activeSection = p.id;
+    this.emit();
+  }
+
+  setActiveSection(id: string | null): void {
+    this.activeSection = id && this.sectionPlanes.some((p) => p.id === id) ? id : null;
+    this.emit();
+  }
+
+  deleteSectionPlane(id: string): void {
+    this.sectionPlanes = this.sectionPlanes.filter((p) => p.id !== id);
+    if (this.activeSection === id) this.activeSection = null;
+    this.emit();
+  }
+
+  get activeSectionPlane(): SectionPlaneDef | null {
+    return this.sectionPlanes.find((p) => p.id === this.activeSection) ?? null;
+  }
+
+  /** Ajoute ou remplace (même nom, sans tenir compte de la casse) une vue nommée. */
+  putNamedView(v: NamedView): void {
+    const i = this.namedViews.findIndex((n) => n.name.toLowerCase() === v.name.toLowerCase());
+    this.namedViews = i < 0 ? [...this.namedViews, v] : this.namedViews.map((n, k) => (k === i ? v : n));
+    this.emit();
+  }
+
+  namedView(name: string): NamedView | undefined {
+    const q = name.trim().toLowerCase();
+    return this.namedViews.find((n) => n.name.toLowerCase() === q);
+  }
+
+  deleteNamedView(name: string): void {
+    const q = name.trim().toLowerCase();
+    this.namedViews = this.namedViews.filter((n) => n.name.toLowerCase() !== q);
+    this.emit();
+  }
+
   saveLayerState(name: string): void {
     this.layerStates = { ...this.layerStates, [name]: this.layers.map((l) => ({ ...l })) };
     this.emit();
@@ -750,9 +982,15 @@ export class DrawingDocument {
     underlays?: Record<string, UnderlayDef>;
     joints?: Joint[];
     sheets?: DrawingSheet[];
+    namedViews?: NamedView[];
+    sectionPlanes?: SectionPlaneDef[];
+    activeSection?: string | null;
+    dimStyles?: Record<string, DimStyleDef>;
+    currentDimStyle?: string;
   }): void {
     const before = [...this.entities.keys()];
     this.entities = new Map(data.entities.map((e) => [e.handle, e]));
+    this.linked = data.entities.some(isLinked);
     this.layers = data.layers.length ? data.layers : defaultLayers();
     if (!this.layer('0')) this.layers.unshift(defaultLayers()[0]!);
     this.constraints = data.constraints;
@@ -762,6 +1000,11 @@ export class DrawingDocument {
     this.joints = (data.joints ?? []).filter((j) => j.parts.some((p) => this.entities.has(p)));
     this.nextJoint = this.joints.reduce((m, j) => Math.max(m, parseInt(j.id.slice(1)) || 0), 0) + 1;
     this.sheets = data.sheets ?? [];
+    this.namedViews = data.namedViews ?? [];
+    this.sectionPlanes = data.sectionPlanes ?? [];
+    this.activeSection = data.activeSection && this.sectionPlanes.some((p) => p.id === data.activeSection) ? data.activeSection : null;
+    this.dimStyles = { Standard: { name: 'Standard' }, ...(data.dimStyles ?? {}) };
+    this.currentDimStyle = data.currentDimStyle && this.dimStyles[data.currentDimStyle] ? data.currentDimStyle : 'Standard';
     this.currentLayer = data.currentLayer && this.layer(data.currentLayer) ? data.currentLayer : '0';
     this.fileName = data.fileName;
     const maxHandle = data.entities.reduce((m, e) => Math.max(m, parseInt(e.handle, 16) || 0), 0xff);

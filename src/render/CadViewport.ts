@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TECH_BACKGROUND } from './technical';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { AdaptiveGrid } from './AdaptiveGrid';
 import { UcsGizmo, type AxisName } from './UcsGizmo';
@@ -54,12 +55,16 @@ export interface CadViewportOptions {
   projection?: Projection;
 }
 
+type ViewStateLike = { projection: Projection; position: THREE.Vector3Like; target: THREE.Vector3Like; up: THREE.Vector3Like; halfHeight: number };
+
 export class CadViewport {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   /** Calque racine des entités du document (le reste = aides visuelles). */
   readonly modelRoot = new THREE.Group();
   readonly grid = new AdaptiveGrid();
+  /** Couleur du fond (hors style Technique). */
+  private background: THREE.ColorRepresentation = 0x212830;
   readonly gizmo = new UcsGizmo();
   readonly perspective: THREE.PerspectiveCamera;
   readonly ortho: THREE.OrthographicCamera;
@@ -121,7 +126,8 @@ export class CadViewport {
     this.renderer.domElement.style.display = 'block';
 
     // Fond anthracite de l'espace objet (≈ #212830)
-    this.scene.background = new THREE.Color(opts.background ?? 0x212830);
+    this.background = opts.background ?? 0x212830;
+    this.scene.background = new THREE.Color(this.background);
 
     // --- Caméras ----------------------------------------------------------------
     const { clientWidth: w, clientHeight: h } = container;
@@ -241,6 +247,19 @@ export class CadViewport {
   }
 
   /** Style visuel « Rendu » : ombres portées, reflets plus marqués, tonalité photographique. */
+  /** Style Technique : fond blanc et grille gris clair (dessin au trait). */
+  setTechnical(on: boolean): void {
+    if (this.technical === on) return;
+    this.technical = on;
+    this.scene.background = new THREE.Color(on ? TECH_BACKGROUND : this.background);
+    const u = this.grid.material.uniforms;
+    u.uMinorColor!.value.set(on ? 0xdfe2e6 : 0x3a4350);
+    u.uMajorColor!.value.set(on ? 0xbfc4ca : 0x56616f);
+    this.requestRender();
+  }
+
+  private technical = false;
+
   setRenderMode(on: boolean): void {
     if (on === this.renderMode) return;
     this.renderMode = on;
@@ -331,6 +350,12 @@ export class CadViewport {
   }
 
   /** Définit le SCU courant (commande SCU/UCS) : la grille et l'icône suivent. */
+  /** Pas minimal de la grille (GRILLE › Pas) ; 0 = 1 unité. La grille reste adaptative au-delà. */
+  setGridUnit(step: number): void {
+    this.grid.baseStep = step > 0 ? step : 1;
+    this.requestRender();
+  }
+
   setUcs(matrix: THREE.Matrix4): void {
     this.ucs.copy(matrix);
     matrix.decompose(this.ucsFrame.position, this.ucsFrame.quaternion, this.ucsFrame.scale);
@@ -494,7 +519,7 @@ export class CadViewport {
           if (this.sectioned.has(m)) continue;
           m.clippingPlanes = this.sectionPlanes;
           // intérieur visible à travers la coupe (surfaces, solides mal fermés)
-          if (mesh.isMesh && m.side !== THREE.DoubleSide) {
+          if (mesh.isMesh && m.side !== THREE.DoubleSide && !mesh.userData.outline) {
             m.userData.sectionSide = m.side;
             m.side = THREE.DoubleSide;
           }
@@ -605,7 +630,10 @@ export class CadViewport {
 
   /** ZOOM Étendu : cadre toute la géométrie du modèle. */
   zoomExtents(margin = 1.15): void {
-    this.frameBox(new THREE.Box3().setFromObject(this.modelRoot), margin);
+    // les lignes de construction (guides) sont très longues : hors de l'emprise
+    const box = new THREE.Box3();
+    for (const c of this.modelRoot.children) if (!c.userData.noBounds) box.expandByObject(c);
+    this.frameBox(box, margin);
   }
 
   /** Cadre un ensemble de points (zoom objet). */
@@ -646,6 +674,14 @@ export class CadViewport {
       if (this.controls.update()) this.requestRender();
       this.renderNow();
     });
+  }
+
+  get canvas(): HTMLCanvasElement {
+    return this.renderer.domElement;
+  }
+
+  renderFrame(): void {
+    this.renderNow();
   }
 
   private renderNow(): void {
@@ -720,10 +756,55 @@ export class CadViewport {
     return { projection: this.projection, position: v(c.position), target: v(this.controls.target), up: v(c.up), halfHeight };
   }
 
-  setViewState(s: { projection: Projection; position: THREE.Vector3Like; target: THREE.Vector3Like; up: THREE.Vector3Like; halfHeight: number }): void {
+  setViewState(s: ViewStateLike): void {
     if (this.animation !== null) cancelAnimationFrame(this.animation), (this.animation = null);
     // l'espace 2D impose la vue de dessus parallèle
     if (!this.mode2d) this.setProjection(s.projection);
+    this.applyViewState(s);
+  }
+
+  /**
+   * Transition animée vers un cadrage (mode Présentation) : la cible glisse, la direction de
+   * visée tourne, la hauteur visible et le « haut » s'interpolent. Résolue à la fin.
+   */
+  transitionTo(s: ViewStateLike, ms = 1200): Promise<void> {
+    if (this.animation !== null) cancelAnimationFrame(this.animation), (this.animation = null);
+    if (ms <= 0) {
+      this.setViewState(s);
+      return Promise.resolve();
+    }
+    const a = this.getViewState();
+    if (!this.mode2d) this.setProjection(s.projection);
+    const V = (p: THREE.Vector3Like) => new THREE.Vector3(p.x, p.y, p.z);
+    const t0 = V(a.target), t1 = V(s.target);
+    const o0 = V(a.position).sub(t0), o1 = V(s.position).sub(t1);
+    const d0 = o0.length() || 1, d1 = o1.length() || 1;
+    const q = new THREE.Quaternion().setFromUnitVectors(o0.clone().normalize(), o1.clone().normalize());
+    const qi = new THREE.Quaternion();
+    const u0 = V(a.up), u1 = V(s.up);
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const step = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        qi.identity().slerp(q, e);
+        const target = t0.clone().lerp(t1, e);
+        const off = o0.clone().normalize().applyQuaternion(qi).multiplyScalar(d0 + (d1 - d0) * e);
+        const up = u0.clone().lerp(u1, e);
+        if (up.lengthSq() < 1e-9) up.copy(u1);
+        this.applyViewState({ projection: s.projection, target, position: target.clone().add(off), up: up.normalize(), halfHeight: a.halfHeight + (s.halfHeight - a.halfHeight) * e });
+        this.renderNow();
+        if (t < 1) this.animation = requestAnimationFrame(step);
+        else {
+          this.animation = null;
+          resolve();
+        }
+      };
+      this.animation = requestAnimationFrame(step);
+    });
+  }
+
+  private applyViewState(s: ViewStateLike): void {
     const c = this.camera;
     this.controls.target.set(s.target.x, s.target.y, s.target.z);
     if (this.mode2d) {

@@ -304,8 +304,24 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   arrière et isométrique générées depuis la 3D (projection européenne ou américaine), lignes cachées
   en tirets, axes et centres des perçages, cadre A4 à A0 avec cartouche (titre, matière, échelle, date,
   symbole de projection), échelle automatique. Les vues sont en vraie grandeur : `COTLIN`, `COTALI`,
-  `COTDIA`… donnent les vraies cotes. `MAJVUES` régénère les vues après une modification du modèle,
+  `COTDIA`, `COTANG`, `COTARC`, `COTORD`, `COTCONTINUE`, `COTLIGNEBASE`… donnent les vraies cotes. `MAJVUES` régénère les vues après une modification du modèle,
   `EXPORTPDF` imprime la feuille à l'échelle en PDF vectoriel (`EXPORTDXF` reste possible).
+- **Saisie dynamique à deux cases** (1.1.0) : longueur Tab angle, largeur Tab hauteur (`RECTANGLE`,
+  `BOITE`), coordonnées relatives au point précédent (`#` = absolu, `COORDSDYN`). Pas fixe de la grille
+  et de la résolution (`GRILLE 10`, `RESOL 5`). Vues nommées (`VUESNOMMEES`). Style visuel
+  **Technique** : fond blanc, arêtes cachées en tirets, contours apparents.
+- **Cotation et mise en plan** (1.2.0) : styles de cote (`STYLECOTE`) avec tolérances, repères et
+  étiquettes (`REPERE`, `ETIQUETTE`), cotes 3D (`COT3D`), cotes associatives qui suivent les objets,
+  vues en coupe hachurées (`VUECOUPE`), vues de détail (`VUEDETAIL`), bulles et nomenclature
+  (`BULLE`, `NOMENCLATURE`), rappels de perçage (`RAPPELTROU`).
+- **Construction** (1.2.0) : guides (`GUIDE`, `RAPPORTEUR`, `EFFGUIDES`), accrochages Extension et
+  Parallèle, `DE` (décalage depuis un point) et `M2P` (milieu de deux points).
+- **Blocs et composants** (1.2.0) : `BLOC`, `INSERER`, `MODIFBLOC`, bibliothèque personnelle
+  `MESCOMPOSANTS`.
+- **Plans de coupe et présentation** (1.2.0) : plans de coupe enregistrés (`PLANCOUPE`, `PLANSCOUPE`),
+  section posée à plat (`COUPE2D`), scènes (vues nommées avec calques et coupe), mode `PRESENTATION`
+  en plein écran et export de la visite en vidéo ou GIF (`EXPORTPRESENTATION`). Thème clair ou sombre
+  des barres (`THEME`).
 - **Types de ligne** : continu, caché, axe, tirets, fantôme par calque (palette Calques), échelle
   `LTSCALE`, conservés en DXF.
 - **Tôlerie** (`TOLE`, `DEPLIER`, onglet Outils 3D) : tôle de base tirée d'un contour fermé, bords

@@ -207,7 +207,7 @@ const elev = cmd('ELEV', 'ELEV', ['ELEVATION'], 'Élévation du plan de travail 
 // Analyse de coupe
 // ---------------------------------------------------------------------------
 
-function modelBox(app: AppHost): { min: Vec3; max: Vec3 } | null {
+export function modelBox(app: AppHost): { min: Vec3; max: Vec3 } | null {
   let box: { min: Vec3; max: Vec3 } | null = null;
   for (const e of app.doc.all()) {
     if (e.type !== '3DSOLID' || !app.doc.isVisible(e)) continue;
@@ -220,7 +220,7 @@ function modelBox(app: AppHost): { min: Vec3; max: Vec3 } | null {
 }
 
 /** Rectangle du plan de coupe dans l'emprise du modèle (aperçu). */
-function planeRect(o: Vec3, n: Vec3, size: number): Vec3[] {
+export function planeRect(o: Vec3, n: Vec3, size: number): Vec3[] {
   const a = Math.abs(n.z) < 0.9 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 };
   let u = { x: n.y * a.z - n.z * a.y, y: n.z * a.x - n.x * a.z, z: n.x * a.y - n.y * a.x };
   const l = Math.hypot(u.x, u.y, u.z) || 1;
