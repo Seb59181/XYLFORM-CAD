@@ -281,7 +281,8 @@ const rectangle = cmd('RECTANG', 'RECTANGLE', ['REC', 'RECTANG'], 'Crée un rect
     return { points: res.points, bulges: res.bulges };
   };
   const preview = (p: Vec3) => curvePoints({ type: 'POLYLINE', handle: '', layer: '', closed: true, ...build(p) } as Entity);
-  const r = await getPointOrKeyword(ctx, 'Spécifiez l’autre coin', { keywords: [kw('Dimensions', 'Cotes', 'C', 'Longueur et largeur')], preview, noRubberBand: true });
+  // saisie dynamique : « 120 Tab 80 » = largeur × hauteur depuis le 1er coin (négatif : autre côté)
+  const r = await getPointOrKeyword(ctx, 'Spécifiez l’autre coin', { keywords: [kw('Dimensions', 'Cotes', 'C', 'Longueur et largeur')], preview, noRubberBand: true, dynBase: first!, dynLabels: ['Largeur', 'Hauteur'] });
   let other: Vec3;
   if (r.keyword === 'Dimensions') {
     const L = (await getDistance(ctx, 'Spécifiez la longueur des rectangles', { allowZero: false })) as number;

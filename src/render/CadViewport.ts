@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TECH_BACKGROUND } from './technical';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { AdaptiveGrid } from './AdaptiveGrid';
 import { UcsGizmo, type AxisName } from './UcsGizmo';
@@ -60,6 +61,8 @@ export class CadViewport {
   /** Calque racine des entités du document (le reste = aides visuelles). */
   readonly modelRoot = new THREE.Group();
   readonly grid = new AdaptiveGrid();
+  /** Couleur du fond (hors style Technique). */
+  private background: THREE.ColorRepresentation = 0x212830;
   readonly gizmo = new UcsGizmo();
   readonly perspective: THREE.PerspectiveCamera;
   readonly ortho: THREE.OrthographicCamera;
@@ -121,7 +124,8 @@ export class CadViewport {
     this.renderer.domElement.style.display = 'block';
 
     // Fond anthracite de l'espace objet (≈ #212830)
-    this.scene.background = new THREE.Color(opts.background ?? 0x212830);
+    this.background = opts.background ?? 0x212830;
+    this.scene.background = new THREE.Color(this.background);
 
     // --- Caméras ----------------------------------------------------------------
     const { clientWidth: w, clientHeight: h } = container;
@@ -241,6 +245,19 @@ export class CadViewport {
   }
 
   /** Style visuel « Rendu » : ombres portées, reflets plus marqués, tonalité photographique. */
+  /** Style Technique : fond blanc et grille gris clair (dessin au trait). */
+  setTechnical(on: boolean): void {
+    if (this.technical === on) return;
+    this.technical = on;
+    this.scene.background = new THREE.Color(on ? TECH_BACKGROUND : this.background);
+    const u = this.grid.material.uniforms;
+    u.uMinorColor!.value.set(on ? 0xdfe2e6 : 0x3a4350);
+    u.uMajorColor!.value.set(on ? 0xbfc4ca : 0x56616f);
+    this.requestRender();
+  }
+
+  private technical = false;
+
   setRenderMode(on: boolean): void {
     if (on === this.renderMode) return;
     this.renderMode = on;
@@ -331,6 +348,12 @@ export class CadViewport {
   }
 
   /** Définit le SCU courant (commande SCU/UCS) : la grille et l'icône suivent. */
+  /** Pas minimal de la grille (GRILLE › Pas) ; 0 = 1 unité. La grille reste adaptative au-delà. */
+  setGridUnit(step: number): void {
+    this.grid.baseStep = step > 0 ? step : 1;
+    this.requestRender();
+  }
+
   setUcs(matrix: THREE.Matrix4): void {
     this.ucs.copy(matrix);
     matrix.decompose(this.ucsFrame.position, this.ucsFrame.quaternion, this.ucsFrame.scale);
@@ -494,7 +517,7 @@ export class CadViewport {
           if (this.sectioned.has(m)) continue;
           m.clippingPlanes = this.sectionPlanes;
           // intérieur visible à travers la coupe (surfaces, solides mal fermés)
-          if (mesh.isMesh && m.side !== THREE.DoubleSide) {
+          if (mesh.isMesh && m.side !== THREE.DoubleSide && !mesh.userData.outline) {
             m.userData.sectionSide = m.side;
             m.side = THREE.DoubleSide;
           }

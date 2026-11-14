@@ -143,6 +143,8 @@ const TABS: Tab[] = [
           { label: 'Linéaire', icon: 'dimlinear', cmd: 'COTLIN' },
           { label: 'Rayon', icon: 'dimradius', cmd: 'COTRAYON' },
           { label: 'Diamètre', icon: 'dimdiameter', cmd: 'COTDIA' },
+          { label: 'Angulaire', icon: 'dimangular', cmd: 'COTANG' },
+          { label: 'En série', icon: 'dimcontinue', cmd: 'COTCONTINUE' },
         ],
       },
       {
@@ -241,6 +243,11 @@ const TABS: Tab[] = [
         small: [
           { label: 'Rayon', icon: 'dimradius', cmd: 'COTRAYON' },
           { label: 'Diamètre', icon: 'dimdiameter', cmd: 'COTDIA' },
+          { label: 'Angulaire', icon: 'dimangular', cmd: 'COTANG', tip: 'Angle entre deux lignes (ou côtés de polyligne), d’un arc, d’un cercle ou par sommet et deux points' },
+          { label: 'Longueur d’arc', icon: 'dimarc', cmd: 'COTARC' },
+          { label: 'Ordonnée', icon: 'dimordinate', cmd: 'COTORD', tip: 'Abscisse ou ordonnée d’un point depuis une origine (option Origine)' },
+          { label: 'En série', icon: 'dimcontinue', cmd: 'COTCONTINUE', tip: 'Cotes à la suite de la dernière cote : cliquez les points suivants' },
+          { label: 'Ligne de base', icon: 'dimbaseline', cmd: 'COTLIGNEBASE', tip: 'Cotes empilées depuis la même origine que la dernière cote' },
         ],
       },
       { title: 'Style de cote', items: [{ custom: () => <DimSettings /> }] },
@@ -336,6 +343,22 @@ const TABS: Tab[] = [
         ],
       },
       {
+        title: 'Vues nommées',
+        large: [
+          {
+            label: 'Vues nommées',
+            icon: 'named-views',
+            cmd: 'VUESNOMMEES',
+            tip: 'Enregistre le cadrage courant (avec sa projection et son style visuel) et le rappelle en un clic',
+            menu: [
+              { label: 'Enregistrer la vue…', icon: 'named-views', cmd: ['VUESNOMMEES', 'E'] },
+              { label: 'Restaurer une vue…', icon: 'named-views', cmd: ['VUESNOMMEES', 'R'] },
+              { label: 'Liste des vues', icon: 'named-views', cmd: ['VUESNOMMEES', 'L'] },
+            ],
+          },
+        ],
+      },
+      {
         title: 'Vues',
         only: '3d',
         compact: true,
@@ -368,6 +391,7 @@ const TABS: Tab[] = [
           { label: 'Ombré', icon: 'vs-shaded', ...style('shaded') },
           { label: 'Filaire', icon: 'vs-wire', ...style('wireframe') },
           { label: 'Rayons X', icon: 'vs-xray', ...style('xray') },
+          { label: 'Technique', icon: 'vs-technical', ...style('technical'), tip: 'Dessin au trait sur fond blanc : arêtes noires, arêtes cachées en tirets, contours apparents des cylindres et sphères' },
         ],
       },
       {

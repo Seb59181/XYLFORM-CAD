@@ -8,7 +8,7 @@
 import { LINETYPE_IDS, LINETYPES, linetypeFromDxf } from '../core/linetypes';
 import type { Vec3 } from '../core/commands/types';
 import type { Entity, HatchPattern, LayerDef, NewEntity, TextAlign, TextVAlign } from '../core/document/Document';
-import { dimensionGeometry, dimensionText, ellipsePoints, hatchSegments, splineFit, splinePoints, textLayout, textWidth, transformEntity } from '../core/entities/geometry';
+import { dimensionGeometry, dimensionLabel, ellipsePoints, hatchSegments, splineFit, splinePoints, textLayout, textWidth, transformEntity } from '../core/entities/geometry';
 import { polylineSamples } from '../core/entities/bulge';
 import { multiply, rotationZ, scaling, translation, type Affine } from '../core/math/affine';
 import { aciToHex, hexToAci, trueColorToHex } from './aci';
@@ -809,18 +809,19 @@ function writeEntity(w: Writer, e: Entity): void {
     }
     case 'DIMENSION': {
       const g = dimensionGeometry(e);
-      for (const l of g.lines) for (let i = 0; i + 1 < l.length; i++) {
+      const lab = dimensionLabel(e, e.textHeight ?? 2.5);
+      for (const l of [...g.lines, ...lab.lines]) for (let i = 0; i + 1 < l.length; i++) {
         head(w, 'LINE', e);
         xyz(w, 10, l[i]!);
         xyz(w, 11, l[i + 1]!);
       }
       head(w, 'TEXT', e);
-      xyz(w, 10, g.textPos);
+      xyz(w, 10, lab.at);
       w.pair(40, e.textHeight ?? 2.5);
-      w.pair(1, dimensionText(e).replace(/Ø/g, '%%c'));
-      w.pair(50, g.angle * DEG);
+      w.pair(1, lab.text.replace(/Ø/g, '%%c').replace(/°/g, '%%d'));
+      w.pair(50, lab.angle * DEG);
       w.pair(72, '1');
-      xyz(w, 11, g.textPos);
+      xyz(w, 11, lab.at);
       return;
     }
     case '3DSOLID': {

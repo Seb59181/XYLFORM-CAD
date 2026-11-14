@@ -133,13 +133,18 @@ export class CommandProcessor {
       }
     }
 
+    const spec = top.pending.spec;
+    const dynBase = spec.dynBase ?? spec.basePoint;
     const env: ParseEnv = {
       lastPoint: this._lastPoint,
       elevation: this.elevation,
       cursorDirection: this.cursorDirection,
-      dynamicRelative: this.dynamicRelative && !!top.pending.spec.basePoint,
+      dynamicRelative: this.dynamicRelative && !!dynBase,
+      dynamicBase: this.dynamicRelative ? dynBase : undefined,
     };
-    const result = parseInput(text, top.pending.spec, env);
+    // saisie dynamique : « 100< » ou « 120, » (seconde case vide) = première valeur seule
+    if (spec.kind === 'point') text = text.replace(/^([^<,]+)[<,]\s*$/, '$1');
+    const result = parseInput(text, spec, env);
     if (result.kind === 'error') {
       this.print(result.message);
       this.emitPrompt(top.pending.spec);

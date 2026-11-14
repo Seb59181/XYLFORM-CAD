@@ -5,10 +5,11 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Interaction } from '../app/Interaction';
-import { STYLE_LABEL, VIEW_LABEL } from '../app/commands/utility';
+import { restoreNamedView, saveNamedView, STYLE_LABEL, VIEW_LABEL } from '../app/commands/utility';
 import { openDroppedFile } from '../app/commands/files';
 import type { SnapKind } from '../core/entities/geometry';
 import { promptAxis } from '../core/commands/types';
+import { dynLayout, splitDyn } from '../core/commands/dynInput';
 import { CadViewport, type StandardView } from '../render/CadViewport';
 import { SceneSync } from '../render/SceneSync';
 import type { ViewportLayout, VisualStyle } from '../app/AppHost';
@@ -49,6 +50,7 @@ export function Viewport() {
     const scene = new SceneSync(app, vp);
     const it = new Interaction(app, vp, scene);
     vp.grid.visible = app.settings.grid;
+    vp.setGridUnit(app.settings.gridUnit);
     const v3 = (p: { x: number; y: number; z: number }) => new THREE.Vector3(p.x, p.y, p.z);
     const detectView = () => {
       const dir = new THREE.Vector3().subVectors(vp.activeCamera.position, vp.controls.target).normalize();
@@ -81,6 +83,7 @@ export function Viewport() {
         app.emit('settings');
       },
       setWorkPlane: (z) => vp.setUcs(new THREE.Matrix4().makeTranslation(0, 0, z)),
+      setGridUnit: (step) => vp.setGridUnit(step),
       viewDirection: () => {
         const d = new THREE.Vector3().subVectors(vp.activeCamera.position, vp.controls.target).normalize();
         return { x: d.x, y: d.y, z: d.z };
@@ -299,6 +302,38 @@ function DynamicInput() {
     const ang = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
     measure = u ? `${L.toFixed(3)}` : `${L.toFixed(3)} < ${ang.toFixed(1)}°`;
   } else if (!base && w && spec.kind === 'point') measure = `${w.x.toFixed(3)}, ${w.y.toFixed(3)}`;
+  // deux cases (Longueur Tab Angle, X Tab Y) : la case tapée est figée, l'autre suit le curseur
+  const layout = dynLayout(spec, app.settings.dynRelative);
+  const parts = layout ? splitDyn(app.input, layout.mode) : null;
+  if (layout && w && (!app.input || parts)) {
+    let live: [string, string];
+    if (layout.mode === 'polar') {
+      const b = layout.base!;
+      live = [Math.hypot(w.x - b.x, w.y - b.y, w.z - b.z).toFixed(3), `${(((Math.atan2(w.y - b.y, w.x - b.x) * 180) / Math.PI + 360) % 360).toFixed(1)}°`];
+    } else {
+      const o = layout.base ?? { x: 0, y: 0 };
+      live = [(w.x - o.x).toFixed(3), (w.y - o.y).toFixed(3)];
+    }
+    const active = parts?.active ?? 0;
+    const typed = parts?.fields ?? ['', ''];
+    return (
+      <div className="dyn" style={{ left: c.x + 22, top: c.y + 22 }}>
+        <div className="dyn-prompt">
+          <PromptText text={spec.message + (spec.keywords?.length ? ` [${spec.keywords.map((k) => k.local).join('/')}]` : '')} keywords={spec.keywords} onKeyword={(k) => app.processor.submit(k)} />
+        </div>
+        <div className="dyn-row dyn-fields">
+          {[0, 1].map((i) => (
+            <span key={i} className={`dyn-field ${i === active ? 'active' : ''} ${typed[i] ? 'typed' : ''}`} title={layout.labels[i]}>
+              <small>{layout.labels[i]}</small>
+              {typed[i] || live[i]}
+              {i === active && <i className="dyn-caret" />}
+            </span>
+          ))}
+          <span className="dyn-hint">Tab</span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="dyn" style={{ left: c.x + 22, top: c.y + 22 }}>
       <div className="dyn-prompt">
@@ -312,7 +347,7 @@ function DynamicInput() {
 }
 
 function ViewportControls({ viewName }: { viewName: string }) {
-  const app = useHost(['settings']);
+  const app = useHost(['settings', 'doc']);
   const [menu, setMenu] = useState<null | 'main' | 'view' | 'style'>(null);
   useEffect(() => {
     if (!menu) return;
@@ -324,6 +359,18 @@ function ViewportControls({ viewName }: { viewName: string }) {
     <button key={label} className={on ? 'on' : ''} onMouseDown={(e) => e.stopPropagation()} onClick={() => (fn(), setMenu(null))}>
       {label}
     </button>
+  );
+  // vues nommées du dessin (VUESNOMMEES) : rappel en un clic, enregistrement de la vue courante
+  const namedItems = () => (
+    <>
+      <div className="vp-menu-sep">Vues nommées</div>
+      {app.doc.namedViews.map((v) => item(v.name, () => restoreNamedView(app, v.name)))}
+      {item('Enregistrer la vue…', () => {
+        let i = app.doc.namedViews.length + 1;
+        while (app.doc.namedView(`Vue${i}`)) i++;
+        void app.ui.prompt('Enregistrer la vue', `Vue${i}`, 'Nom de la vue').then((n) => n && saveNamedView(app, n) && app.ui.toast(`Vue « ${n.trim()} » enregistrée.`));
+      })}
+    </>
   );
   if (app.settings.workspace === '2d')
     return (
@@ -337,6 +384,7 @@ function ViewportControls({ viewName }: { viewName: string }) {
             {item('Zoom étendu', () => app.viewport?.zoomExtents())}
             {item('Grille', () => app.toggle('grid'), app.settings.grid)}
             {item('Passer en 3D', () => app.set('workspace', '3d'))}
+            {namedItems()}
           </div>
         )}
       </div>
@@ -355,7 +403,12 @@ function ViewportControls({ viewName }: { viewName: string }) {
           {item('Passer en 2D', () => app.set('workspace', '2d'))}
         </div>
       )}
-      {menu === 'view' && <div className="vp-menu">{(Object.keys(VIEW_LABEL) as StandardView[]).map((v) => item(VIEW_LABEL[v], () => app.viewport?.setView(v), VIEW_LABEL[v] === viewName))}</div>}
+      {menu === 'view' && (
+        <div className="vp-menu">
+          {(Object.keys(VIEW_LABEL) as StandardView[]).map((v) => item(VIEW_LABEL[v], () => app.viewport?.setView(v), VIEW_LABEL[v] === viewName))}
+          {namedItems()}
+        </div>
+      )}
       {menu === 'style' && <div className="vp-menu">{(Object.keys(STYLE_LABEL) as VisualStyle[]).map((s) => item(STYLE_LABEL[s], () => app.set('visualStyle', s), s === app.settings.visualStyle))}</div>}
     </div>
   );
