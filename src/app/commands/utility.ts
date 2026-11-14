@@ -3,7 +3,7 @@
  * presse-papiers, réglages de dessin (ACCROBJ, GRILLE, ORTHO…), calques et utilitaires.
  */
 import { ask, type CommandContext, type CommandDefinition, type Vec3 } from '../../core/commands';
-import { placeHistory, placePrimitive, type Entity, type LayerDef, type NewEntity } from '../../core/document/Document';
+import { placeHistory, placePrimitive, type Entity, type LayerDef, type NamedView, type NewEntity } from '../../core/document/Document';
 import { arcSweep, curvePoints, entityArea, entityBBox, entityLabel, entityLength, polygonArea, polylineLength, SNAP_LABEL, transformEntity, type SnapKind } from '../../core/entities/geometry';
 import { add, angleXY, dist, sub, translation } from '../../core/math/affine';
 import type { StandardView } from '../../render/CadViewport';
@@ -84,21 +84,51 @@ const view = cmd(
 
 export const STYLE_LABEL: Record<VisualStyle, string> = { realistic: 'Réaliste', render: 'Rendu', shaded: 'Ombré', wireframe: 'Filaire', xray: 'Rayons X', technical: 'Technique' };
 
-/** Rappelle une vue nommée (cadrage, projection, style visuel). */
-export function restoreNamedView(app: AppHost, name: string): boolean {
-  const v = app.doc.namedView(name);
-  if (!v || !app.viewport) return false;
+/** Applique à la vue l'état d'une scène : espace, style, projection, calques visibles, plan de coupe. */
+function applyScene(app: AppHost, v: NamedView): void {
   if (v.workspace && v.workspace !== app.settings.workspace) app.set('workspace', v.workspace);
   if (v.style && v.style in STYLE_LABEL && v.style !== app.settings.visualStyle) app.set('visualStyle', v.style as VisualStyle);
   if (app.settings.workspace === '3d' && v.view.projection !== app.settings.projection) app.set('projection', v.view.projection);
+  if (v.layersOn) {
+    const on = new Set(v.layersOn);
+    for (const l of app.doc.layers) if (l.visible !== on.has(l.name)) app.doc.updateLayer(l.name, { visible: on.has(l.name) });
+  }
+  if (v.section !== undefined && v.section !== app.doc.activeSection) {
+    app.doc.setActiveSection(v.section);
+    app.syncSection(true);
+  }
+}
+
+/** Rappelle une vue nommée (cadrage, projection, style visuel, calques et coupe d'une scène). */
+export function restoreNamedView(app: AppHost, name: string): boolean {
+  const v = app.doc.namedView(name);
+  if (!v || !app.viewport) return false;
+  applyScene(app, v);
   app.viewport.setViewState(v.view);
   return true;
 }
 
-/** Enregistre la vue courante sous ce nom (remplace une vue du même nom). */
+/** Même chose avec une transition animée de la caméra (mode Présentation). */
+export async function transitionToNamedView(app: AppHost, name: string, ms: number): Promise<boolean> {
+  const v = app.doc.namedView(name);
+  if (!v || !app.viewport) return false;
+  applyScene(app, v);
+  // la transition peut être interrompue (clic, autre vue) : on n'attend pas plus que prévu
+  await Promise.race([app.viewport.transitionTo(v.view, ms), new Promise((r) => setTimeout(r, ms + 300))]);
+  return true;
+}
+
+/** Enregistre la vue courante sous ce nom (remplace une vue du même nom), avec calques et coupe. */
 export function saveNamedView(app: AppHost, name: string): boolean {
   if (!app.viewport || !name.trim()) return false;
-  app.doc.putNamedView({ name: name.trim(), view: app.viewport.getViewState(), style: app.settings.visualStyle, workspace: app.settings.workspace });
+  app.doc.putNamedView({
+    name: name.trim(),
+    view: app.viewport.getViewState(),
+    style: app.settings.visualStyle,
+    workspace: app.settings.workspace,
+    layersOn: app.doc.layers.filter((l) => l.visible).map((l) => l.name),
+    section: app.doc.activeSection,
+  });
   return true;
 }
 
@@ -110,7 +140,7 @@ const namedViews = cmd(
   'NAMEDVIEWS',
   'VUESNOMMEES',
   ['VN', 'SCENES', 'SCENE'],
-  'Vues nommées : enregistre et rappelle un cadrage avec sa projection et son style visuel',
+  'Vues nommées (scènes) : enregistre et rappelle un cadrage avec sa projection, son style, les calques visibles et la coupe active',
   async (ctx, app) => {
     const names = () => app.doc.namedViews.map((v) => v.name);
     for (;;) {
@@ -213,6 +243,12 @@ const purge = cmd('PURGE', 'PURGER', ['PU'], 'Supprime les calques vides', async
 // Réglages de dessin
 // ---------------------------------------------------------------------------
 
+const theme = cmd('UITHEME', 'THEME', ['THM', 'THEMEINTERFACE'], 'Thème des barres de menu : sombre ou clair', async (ctx, app) => {
+  const r = await getKeyword(ctx, 'Thème des barres', [kw('Dark', 'Sombre', 'S'), kw('Light', 'Clair', 'C')], app.settings.uiTheme === 'light' ? 'Dark' : 'Light');
+  app.set('uiTheme', r === 'Light' ? 'light' : 'dark');
+  ctx.print(`Thème ${r === 'Light' ? 'clair' : 'sombre'}.`);
+}, { transparent: true });
+
 const SNAP_KEYS: [SnapKind, string, string][] = [
   ['END', 'EXTrémité', 'EXT'],
   ['MID', 'MILieu', 'MIL'],
@@ -223,6 +259,8 @@ const SNAP_KEYS: [SnapKind, string, string][] = [
   ['INS', 'INSertion', 'INS'],
   ['PER', 'PERpendiculaire', 'PER'],
   ['TAN', 'TANgente', 'TAN'],
+  ['EXT', 'PROLongement', 'PROL'],
+  ['PAR', 'PARallèle', 'PAR'],
   ['NEA', 'PROche', 'PRO'],
 ];
 
@@ -601,6 +639,7 @@ const selectAll = cmd('SELECTALL', 'TOUTSEL', ['TS', 'AI_SELALL'], 'Sélectionne
 }, { transparent: true });
 
 export const utilityCommands: CommandDefinition[] = [
+  theme,
   customize,
   zoom,
   pan,

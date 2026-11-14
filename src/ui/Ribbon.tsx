@@ -194,6 +194,18 @@ const TABS: Tab[] = [
         ],
       },
       {
+        title: 'Blocs',
+        large: [
+          { label: 'Créer un bloc', icon: 'block', cmd: 'BLOC', tip: 'Regroupe des objets 2D sous un nom ; un nom existant redéfinit le bloc et toutes ses copies' },
+          { label: 'Insérer', icon: 'insert', cmd: 'INSERER', tip: 'Pose une copie liée d’un bloc (point, échelle, rotation)' },
+        ],
+        small: [
+          { label: 'Modifier le bloc', icon: 'block', cmd: 'MODIFBLOC', tip: 'Modifie un bloc sur place ; FERMERBLOC met à jour toutes ses copies' },
+          { label: 'Fermer le bloc', icon: 'check', cmd: 'FERMERBLOC' },
+          { label: 'Mes composants', icon: 'components', cmd: 'MESCOMPOSANTS', tip: 'Bibliothèque personnelle de blocs, réutilisable dans tous vos dessins' },
+        ],
+      },
+      {
         title: 'Fonds de plan',
         large: [
           { label: 'Attacher', icon: 'xref-attach', cmd: 'ATTACHER', tip: 'Attache un plan DWG/DXF, un PDF ou une image comme fond de plan estompé, non modifiable et accrochable (ATTACHER)' },
@@ -248,6 +260,20 @@ const TABS: Tab[] = [
           { label: 'Ordonnée', icon: 'dimordinate', cmd: 'COTORD', tip: 'Abscisse ou ordonnée d’un point depuis une origine (option Origine)' },
           { label: 'En série', icon: 'dimcontinue', cmd: 'COTCONTINUE', tip: 'Cotes à la suite de la dernière cote : cliquez les points suivants' },
           { label: 'Ligne de base', icon: 'dimbaseline', cmd: 'COTLIGNEBASE', tip: 'Cotes empilées depuis la même origine que la dernière cote' },
+          { label: 'Cote 3D', icon: 'dimaligned', cmd: 'COT3D', tip: 'Cote entre deux points de l’espace (arêtes, sommets de solides) ; texte toujours face à l’écran' },
+        ],
+      },
+      {
+        title: 'Repères',
+        large: [{ label: 'Étiquette', icon: 'label', cmd: 'ETIQUETTE', tip: 'Désignez un objet : aire, longueur, volume ou nom, recalculés quand l’objet change' }],
+        small: [{ label: 'Repère', icon: 'leader', cmd: 'REPERE', tip: 'Flèche, ligne de rappel et texte libre' }],
+      },
+      {
+        title: 'Construction',
+        large: [{ label: 'Guide', icon: 'tapeguide', cmd: 'GUIDE', tip: 'Ligne de construction infinie : deux points, horizontale, verticale, angle, Décalage d’une ligne (mètre), bissectrice' }],
+        small: [
+          { label: 'Rapporteur', icon: 'protractor', cmd: 'RAPPORTEUR', tip: 'Guide à un angle depuis un sommet et une direction de référence' },
+          { label: 'Effacer les guides', icon: 'erase', cmd: 'EFFGUIDES' },
         ],
       },
       { title: 'Style de cote', items: [{ custom: () => <DimSettings /> }] },
@@ -343,17 +369,30 @@ const TABS: Tab[] = [
         ],
       },
       {
-        title: 'Vues nommées',
+        title: 'Scènes',
         large: [
           {
             label: 'Vues nommées',
             icon: 'named-views',
             cmd: 'VUESNOMMEES',
-            tip: 'Enregistre le cadrage courant (avec sa projection et son style visuel) et le rappelle en un clic',
+            tip: 'Scène : enregistre le cadrage courant avec sa projection, son style visuel, les calques visibles et la coupe active',
             menu: [
-              { label: 'Enregistrer la vue…', icon: 'named-views', cmd: ['VUESNOMMEES', 'E'] },
-              { label: 'Restaurer une vue…', icon: 'named-views', cmd: ['VUESNOMMEES', 'R'] },
-              { label: 'Liste des vues', icon: 'named-views', cmd: ['VUESNOMMEES', 'L'] },
+              { label: 'Enregistrer la scène…', icon: 'named-views', cmd: ['VUESNOMMEES', 'E'] },
+              { label: 'Restaurer une scène…', icon: 'named-views', cmd: ['VUESNOMMEES', 'R'] },
+              { label: 'Liste des scènes', icon: 'named-views', cmd: ['VUESNOMMEES', 'L'] },
+            ],
+          },
+          {
+            label: 'Présentation',
+            icon: 'present',
+            cmd: ['PRESENTATION', 'M'],
+            tip: 'Enchaîne les scènes en plein écran avec des transitions animées (← → pour naviguer, Échap pour quitter)',
+            menu: [
+              { label: 'Présentation (manuelle)', icon: 'present', cmd: ['PRESENTATION', 'M'] },
+              { label: 'Lecture automatique', icon: 'present', cmd: ['PRESENTATION', 'A'] },
+              { label: 'Durées des transitions…', icon: 'present', cmd: ['PRESENTATION', 'D'] },
+              { label: 'Enregistrer en vidéo', icon: 'present', cmd: ['EXPORTPRESENTATION', 'V'] },
+              { label: 'Enregistrer en GIF', icon: 'present', cmd: ['EXPORTPRESENTATION', 'G'] },
             ],
           },
         ],
@@ -556,7 +595,18 @@ const TABS: Tab[] = [
           { label: 'Propriétés de masse', icon: 'massprop', cmd: 'PROPMASSE' },
         ],
         small: [
-          { label: 'Coupe de section', icon: 'section', cmd: 'ANALYSECOUPE' },
+          {
+            label: 'Coupe de section',
+            icon: 'section',
+            cmd: 'ANALYSECOUPE',
+            tip: 'Coupe de visualisation ; le menu ▾ gère les plans de coupe enregistrés dans le dessin',
+            menu: [
+              { label: 'Coupe rapide', icon: 'section', cmd: 'ANALYSECOUPE' },
+              { label: 'Nouveau plan de coupe', icon: 'section', cmd: 'PLANCOUPE' },
+              { label: 'Gérer les plans de coupe', icon: 'section', cmd: 'PLANSCOUPE' },
+              { label: 'Poser la coupe à plat (2D)', icon: 'section', cmd: 'COUPE2D' },
+            ],
+          },
           { label: 'Mesurer', icon: 'dist', cmd: 'DIST' },
           { label: 'Liste', icon: 'list', cmd: 'LISTE' },
         ],
@@ -573,6 +623,16 @@ const TABS: Tab[] = [
           { label: 'Mise en plan', icon: 'drawing-sheet', cmd: 'MISEENPLAN', tip: 'Vues 2D cotables depuis la 3D : face, dessus, côtés, iso, lignes cachées, axes, cadre et cartouche à l’échelle' },
           { label: 'Mettre à jour', icon: 'view-update', cmd: 'MAJVUES', tip: 'Régénère les vues après une modification du modèle 3D' },
           { label: 'PDF', icon: 'pdf', cmd: 'EXPORTPDF', tip: 'PDF vectoriel à l’échelle de la feuille (ou de l’étendue du dessin)' },
+        ],
+      },
+      {
+        title: 'Vues et nomenclature',
+        small: [
+          { label: 'Vue en coupe', icon: 'sectionview', cmd: 'VUECOUPE', tip: 'Tracez le trait de coupe sur une vue : coupe hachurée, régénérée par MAJVUES' },
+          { label: 'Vue de détail', icon: 'detailview', cmd: 'VUEDETAIL', tip: 'Cercle sur une vue, agrandi (2 : 1, 5 : 1…)' },
+          { label: 'Nomenclature', icon: 'bom', cmd: 'NOMENCLATURE', tip: 'Tableau des pièces : repère, quantité, désignation, matière' },
+          { label: 'Bulle', icon: 'balloon', cmd: 'BULLE', tip: 'Numéro de repère d’une pièce, d’après la nomenclature' },
+          { label: 'Rappel de trou', icon: 'holecallout', cmd: 'RAPPELTROU', tip: 'Désignation d’un perçage : « 4× M8 prof. 12 », lamage, fraisure' },
         ],
       },
       {
@@ -1137,8 +1197,25 @@ function DimSettings() {
   return (
     <div className="rb-form">
       <NumField label="Hauteur du texte" value={sv.DIMTXT} min={0.01} onChange={(v) => set({ DIMTXT: v })} />
-      <NumField label="Flèches" value={sv.DIMASZ} min={0} onChange={(v) => set({ DIMASZ: v })} />
-      <NumField label="Décimales" value={sv.DIMDEC} step={1} min={0} onChange={(v) => set({ DIMDEC: Math.round(Math.min(8, v)) })} />
+      <label className="rb-field">
+        <span>Style</span>
+        <select
+          value={app.doc.currentDimStyle}
+          onChange={(ev) => {
+            app.doc.currentDimStyle = ev.target.value;
+            app.doc.changed();
+          }}
+        >
+          {Object.keys(app.doc.dimStyles).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button className="rb-small" title="Créer ou modifier un style : flèches, unités, préfixe/suffixe, tolérances" onClick={() => app.run('STYLECOTE')}>
+        <Icon name="dimstyle" /> <span>Gérer les styles…</span>
+      </button>
     </div>
   );
 }

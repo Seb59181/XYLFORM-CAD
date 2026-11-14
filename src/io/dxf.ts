@@ -815,13 +815,15 @@ function writeEntity(w: Writer, e: Entity): void {
         xyz(w, 10, l[i]!);
         xyz(w, 11, l[i + 1]!);
       }
-      head(w, 'TEXT', e);
-      xyz(w, 10, lab.at);
-      w.pair(40, e.textHeight ?? 2.5);
-      w.pair(1, lab.text.replace(/Ø/g, '%%c').replace(/°/g, '%%d'));
-      w.pair(50, lab.angle * DEG);
-      w.pair(72, '1');
-      xyz(w, 11, lab.at);
+      for (const t of lab.texts) {
+        head(w, 'TEXT', e);
+        xyz(w, 10, t.at);
+        w.pair(40, t.height);
+        w.pair(1, t.text.replace(/Ø/g, '%%c').replace(/°/g, '%%d').replace(/±/g, '%%p'));
+        w.pair(50, lab.angle * DEG);
+        w.pair(72, '1');
+        xyz(w, 11, t.at);
+      }
       return;
     }
     case '3DSOLID': {

@@ -370,7 +370,25 @@ export class SceneSync {
         // texte au-dessus de la ligne de cote (sens de lecture), centré
         const lab = dimensionLabel(e, h, sv.DIMASZ, sv.DIMDEC);
         segmentsOf([...g.lines, ...lab.lines], segs);
-        rec.obj = this.textMesh(lab.text, color, lab.at, h, lab.angle, { align: 'center' });
+        const grp = new THREE.Group();
+        for (const t of lab.texts) {
+          if (!lab.billboard) {
+            grp.add(this.textMesh(t.text, color, t.at, t.height, lab.angle, { align: 'center' }));
+            continue;
+          }
+          // cote 3D : texte toujours face à l'écran et visible devant les solides
+          const m = this.textMesh(t.text, color, t.at, t.height, 0, { align: 'center', valign: 'middle' });
+          const mat = m.material as THREE.MeshBasicMaterial;
+          mat.depthTest = false;
+          m.renderOrder = 6;
+          m.onBeforeRender = (_r, _s, cam) => {
+            m.quaternion.copy(cam.quaternion);
+            m.updateMatrixWorld();
+          };
+          grp.add(m);
+        }
+        if (g.fills.length) grp.add(this.fillMesh(g.fills, color));
+        rec.obj = grp;
         break;
       }
       case 'HATCH': {
@@ -387,7 +405,7 @@ export class SceneSync {
     }
     if (segs.length) {
       rec.segs = new Float32Array(segs);
-      rec.batch = `${color}|${width}`;
+      rec.batch = e.type === 'LINE' && e.guide ? `guide|${color}` : `${color}|${width}`;
       this.addTo(this.batches, rec.batch, color, width, e.handle);
     }
     if (rec.obj) {
@@ -452,8 +470,10 @@ export class SceneSync {
       }
       const geo = new LineSegmentsGeometry();
       geo.setPositions(arr);
-      const obj = new LineSegments2(geo, this.lineMat(b.color, b.width));
+      const guide = b.key.startsWith('guide|');
+      const obj = new LineSegments2(geo, this.lineMat(b.color, b.width, guide ? { opacity: 0.75 } : {}));
       obj.name = `Lot ${b.key}`;
+      if (guide) obj.userData.noBounds = true;
       b.obj = obj;
       this.vp.modelRoot.add(obj);
     }
@@ -528,6 +548,20 @@ export class SceneSync {
   }
 
   /** Texte posé dans le plan XY : `height` = hauteur des majuscules, `at` = point d'accroche. */
+  /** Triangles pleins (flèches des cotes, repères). */
+  private fillMesh(tris: Vec3[][], color: string): THREE.Mesh {
+    const pos = new Float32Array(tris.length * 9);
+    tris.forEach((t, i) => t.slice(0, 3).forEach((p, k) => pos.set([p.x, p.y, p.z], i * 9 + k * 3)));
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+    m.toneMapped = false;
+    const mesh = new THREE.Mesh(g, m);
+    mesh.userData.ownMaterial = true;
+    mesh.raycast = () => undefined;
+    return mesh;
+  }
+
   private textMesh(
     text: string,
     color: string,

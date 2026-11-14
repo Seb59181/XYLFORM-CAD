@@ -7,9 +7,10 @@ import { CommandCancelled, CommandProcessor, CommandRegistry, ask, type CommandC
 import type { Vec3 } from '../core/commands/types';
 import { DrawingDocument, featureId, placeHistory, placePrimitive, type DocumentChange, type Entity, type Feature, type Joint, type NewEntity, type PrimitiveDef, type PrimitiveOp } from '../core/document/Document';
 import { hasExpressions, hasRealThread, refreshExpressions, replayHistory } from './history';
+import { itemNumber } from './drawingExtra';
 import { solveConstraints } from '../core/constraints/Solver';
 import type { Constraint } from '../core/constraints/types';
-import { curvePoints, transformEntity, type SnapKind } from '../core/entities/geometry';
+import { assocRefs, curvePoints, dimensionText, findAssocRef, setDimStyleResolver, setEntityLookup, setItemLookup, transformEntity, type SnapKind } from '../core/entities/geometry';
 import { gripsOf } from '../core/entities/edit';
 import { apply, applyVector, isIsometry, norm, rotationAxis, scale, translation, type Affine } from '../core/math/affine';
 import { KernelClient } from '../kernel/KernelClient';
@@ -64,8 +65,12 @@ export interface Settings {
    * l'absolu) ; false = absolues sauf « @ ».
    */
   dynRelative: boolean;
+  /** Cotes associatives : une cote posée sur des points d'objets les suit (COTASSOC). */
+  dimAssoc: boolean;
   lwt: boolean;
   osnapModes: SnapKind[];
+  /** Révision des modes d'accrochage (ajout de nouveaux modes à l'ouverture). */
+  snapRev?: number;
   /**
    * Repérage et inférences (F11) : axes X/Y/Z en couleur depuis le point de base,
    * alignements sur les points accrochés, accrochage « sur la face » des solides en 3D.
@@ -81,6 +86,8 @@ export interface Settings {
   polarIncrement: number;
   showConstraints: boolean;
   visualStyle: VisualStyle;
+  /** Thème des barres (ruban, palettes, barre d'état) : sombre ou clair. */
+  uiTheme: 'dark' | 'light';
   projection: 'perspective' | 'orthographic';
   panel: PanelName | null;
   /** Hauteur de la ligne de commande (lignes d'historique visibles). */
@@ -132,8 +139,11 @@ const DEFAULT_SETTINGS: Settings = {
   osnap: true,
   dyn: true,
   dynRelative: true,
+  dimAssoc: true,
+  uiTheme: 'dark',
   lwt: false,
-  osnapModes: ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN'],
+  osnapModes: ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN', 'EXT', 'PAR'],
+  snapRev: 2,
   infer: true,
   gizmo: true,
   gridUnit: 0,
@@ -192,6 +202,13 @@ export interface ViewportApi {
   /** Position de la caméra (changement d'onglet de dessin). */
   getViewState(): ViewState;
   setViewState(v: ViewState): void;
+  /** Transition animée vers un cadrage (mode Présentation). */
+  transitionTo(v: ViewState, ms?: number): Promise<void>;
+  /** Zone du viewport (plein écran de la présentation) et canevas WebGL (vidéo, GIF). */
+  readonly container: HTMLElement;
+  readonly canvas: HTMLCanvasElement;
+  /** Dessine l'image tout de suite (capture du canevas dans la même tâche). */
+  renderFrame(): void;
   /** Vue de départ d'un nouveau dessin (zone de travail de 200 mm). */
   homeView(): void;
   /**
@@ -378,6 +395,11 @@ export class AppHost {
     });
     this.on('doc', () => this.scheduleBrepCache());
     this.selection = new SelectionSet(() => this.emit('selection'));
+    setDimStyleResolver((e) => this.doc.dimStyleFor(e));
+    setEntityLookup((h) => this.doc.get(h));
+    setItemLookup((h) => itemNumber(this, h));
+    this.on('doc', () => this.syncSection());
+    this.on('tabs', () => this.syncSection());
     register(this.registry);
     this.processor = new CommandProcessor(this.registry, this, {
       prompt: (spec, text) => {
@@ -450,6 +472,7 @@ export class AppHost {
 
   private createTab(fileName?: string): DocTab {
     const doc = new DrawingDocument();
+    doc.labelTextOf = (d) => (d.type === 'DIMENSION' ? dimensionText(d) : undefined);
     if (fileName) doc.fileName = fileName;
     const tab: DocTab = {
       id: `d${++tabCounter}-${Date.now().toString(36)}`,
@@ -642,6 +665,7 @@ export class AppHost {
     if (key === 'gridUnit' || key === 'snapUnit') this.viewport?.setGridUnit(this.settings.gridUnit);
     if (key === 'projection' && this.settings.workspace === '3d') this.viewport?.setProjection(value as Settings['projection']);
     if (key === 'workspace') {
+      setTimeout(() => this.syncSection(true), 800);
       // le noyau 3D (≈ 50 Mo de WebAssembly) n'est préchargé qu'en 3D
       if (value === '3d') void this.kernel.start();
       this.viewport?.setWorkspace(value as Workspace);
@@ -747,7 +771,44 @@ export class AppHost {
   // --- Document --------------------------------------------------------------------
 
   addEntity(e: NewEntity): string {
+    if (e.type === 'DIMENSION' && e.dimStyle === undefined && this.doc.currentDimStyle !== 'Standard') e = { ...e, dimStyle: this.doc.currentDimStyle };
+    if (e.type === 'DIMENSION' && !e.assoc && e.dimType !== 'leader' && this.settings.dimAssoc) {
+      const assoc = this.findAssoc(e as Extract<Entity, { type: 'DIMENSION' }>);
+      if (assoc.length) e = { ...e, assoc };
+    }
     return this.doc.addEntity(e);
+  }
+
+  private sectionKey = 'none';
+
+  /** Plan de coupe actif du dessin (PLANCOUPE) appliqué à la vue quand il change. */
+  syncSection(force = false): void {
+    const p = this.doc.activeSectionPlane;
+    const key = p ? JSON.stringify([p.origin, p.normal]) : 'none';
+    if (!this.viewport || (!force && key === this.sectionKey)) return;
+    this.sectionKey = key;
+    if (p && this.settings.workspace === '2d') return;
+    this.viewport.setSection(p ? { origin: p.origin, normal: p.normal } : null);
+  }
+
+  /** Objets dont les points nommés coïncident avec ceux de la cote (cote associative). */
+  findAssoc(d: Pick<Extract<Entity, { type: 'DIMENSION' }>, 'dimType' | 'p1' | 'p2' | 'center'>): NonNullable<Extract<Entity, { type: 'DIMENSION' }>['assoc']> {
+    const radial = d.dimType === 'radius' || d.dimType === 'diameter';
+    const fields: ('p1' | 'p2' | 'center')[] = ['p1', 'p2', ...(d.center && d.dimType !== 'ordinate' ? ['center' as const] : [])];
+    const out: NonNullable<Extract<Entity, { type: 'DIMENSION' }>['assoc']> = [];
+    const cands = this.doc.all().filter((o) => o.type !== 'DIMENSION' && o.type !== '3DSOLID' && o.type !== 'TEXT' && this.doc.isVisible(o) && assocRefs(o).length);
+    for (const f of fields) {
+      const p = d[f];
+      if (!p) continue;
+      for (const o of cands) {
+        const ref = findAssocRef(o, p, radial && f === 'p2');
+        if (ref) {
+          out.push({ field: f, handle: o.handle, ref });
+          break;
+        }
+      }
+    }
+    return out;
   }
 
   removeEntity(handle: string): void {
@@ -1035,12 +1096,14 @@ export class AppHost {
     const results = await Promise.all(solids.map((s) => this.kernel.solid({ op: 'transform', shapeId: s.shapeId, matrix: m })));
     const solidPatch = new Map(solids.map((s, i) => [s.handle, { shapeId: results[i]!.shapeId, display: results[i]!.display }]));
     const out: string[] = [];
+    const copied = new Map<string, string>();
     this.doc.transaction(opts.label, () => {
       for (const e of ents) {
         const patch = e.type === '3DSOLID' ? { ...solidPatch.get(e.handle)!, primitive: placePrimitive(e.primitive, m), history: placeHistory(e.history, m), threadsReal: e.threadsReal } : transformEntity(e, m);
         if (opts.copy) {
           const { handle: _h, ...rest } = e;
           out.push(this.doc.addEntity({ ...rest, ...patch } as NewEntity));
+          copied.set(e.handle, out[out.length - 1]!);
         } else {
           this.doc.replaceEntity(e.handle, patch);
           out.push(e.handle);
@@ -1048,6 +1111,7 @@ export class AppHost {
       }
       // liaisons dont toutes les pièces bougent : leur axe suit (déplacement rigide seulement)
       if (!opts.copy && isIsometry(m)) this.moveJointsWith(new Set(handles), m);
+      if (opts.copy) this.relinkCopies(copied);
     });
     return out;
   }
@@ -1065,16 +1129,30 @@ export class AppHost {
     const out: string[] = [];
     this.doc.transaction(label, () => {
       ms.forEach((m, k) => {
+        const copied = new Map<string, string>();
         for (const e of ents) {
           const { handle: _h, ...rest } = e;
           if (e.type === '3DSOLID') {
             const r = results[k]![solids.indexOf(e)]!;
             out.push(this.doc.addEntity({ ...rest, shapeId: r.shapeId, display: r.display, primitive: placePrimitive(e.primitive, m), history: placeHistory(e.history, m) } as NewEntity));
           } else out.push(this.doc.addEntity({ ...rest, ...transformEntity(e, m) } as NewEntity));
+          copied.set(e.handle, out[out.length - 1]!);
         }
+        this.relinkCopies(copied);
       });
     });
     return out;
+  }
+
+  /** Copies : les cotes copiées suivent les objets copiés avec elles, sinon ne sont plus associées. */
+  private relinkCopies(copied: Map<string, string>): void {
+    for (const h of copied.values()) {
+      const d = this.doc.get(h);
+      if (d?.type !== 'DIMENSION' || (!d.assoc && !d.labelOf)) continue;
+      const assoc = d.assoc?.flatMap((a) => (copied.has(a.handle) ? [{ ...a, handle: copied.get(a.handle)! }] : []));
+      const labelOf = d.labelOf && copied.has(d.labelOf) ? copied.get(d.labelOf) : undefined;
+      this.doc.replaceEntity(h, { assoc: assoc?.length ? assoc : undefined, labelOf, ...(d.labelOf && !labelOf ? { textOverride: dimensionText(d), label: undefined } : {}) });
+    }
   }
 
   private moveJointsWith(moved: Set<string>, m: Affine, except?: string): void {
@@ -1196,7 +1274,13 @@ function primitiveOfHistory(h: Feature[]): PrimitiveDef | undefined {
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem('sebcad.settings');
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) {
+      const stored = JSON.parse(raw) as Partial<Settings>;
+      const s = { ...DEFAULT_SETTINGS, ...stored };
+      // 1.2.0 : nouveaux accrochages Prolongement et Parallèle, actifs une première fois
+      if ((stored.snapRev ?? 0) < 2) Object.assign(s, { snapRev: 2, osnapModes: [...new Set<SnapKind>([...s.osnapModes, 'EXT', 'PAR'])] });
+      return s;
+    }
   } catch {
     /* stockage indisponible */
   }

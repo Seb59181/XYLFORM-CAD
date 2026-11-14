@@ -134,6 +134,12 @@ export class CommandProcessor {
     }
 
     const spec = top.pending.spec;
+    const mod = spec.kind === 'point' ? pointModifier(text, spec) : null;
+    if (mod) {
+      this.print(`${formatPrompt(spec)}${text.trim()}`);
+      void this.start(this.modifierCommand(mod, top, spec));
+      return;
+    }
     const dynBase = spec.dynBase ?? spec.basePoint;
     const env: ParseEnv = {
       lastPoint: this._lastPoint,
@@ -278,6 +284,36 @@ export class CommandProcessor {
     }
   }
 
+  /**
+   * Modificateurs de point tapés à la place d'un point : DE (point de base puis
+   * décalage @x,y) et M2P (milieu de deux points). Ils s'exécutent comme une commande transparente
+   * et livrent le point obtenu à la commande en cours.
+   */
+  private modifierCommand(mod: 'from' | 'm2p', parent: Frame, spec: PromptSpec): CommandDefinition {
+    const ask = async (ctx: CommandContext, s: PromptSpec): Promise<Vec3> => {
+      const r = await ctx.prompt(s);
+      if (r.kind !== 'point') throw new CommandCancelled();
+      return r.value;
+    };
+    return {
+      name: mod === 'from' ? 'FROM' : 'M2P',
+      localName: mod === 'from' ? 'DE' : 'M2P',
+      transparent: true,
+      run: async (ctx) => {
+        let p: Vec3;
+        if (mod === 'from') {
+          const base = await ask(ctx, { kind: 'point', message: 'Point de base' });
+          p = await ask(ctx, { kind: 'point', message: '<Décalage> (ex. @10,5)', basePoint: base, dynBase: base });
+        } else {
+          const a = await ask(ctx, { kind: 'point', message: 'Premier point du milieu' });
+          const b = await ask(ctx, { kind: 'point', message: 'Second point du milieu', basePoint: a });
+          p = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 };
+        }
+        if (parent.pending?.spec === spec) this.deliver(parent, { kind: 'point', value: p });
+      },
+    };
+  }
+
   private deliver(frame: Frame, result: PromptResult): void {
     const pending = frame.pending;
     if (!pending) return;
@@ -293,6 +329,15 @@ export class CommandProcessor {
   private print(line: string): void {
     this.events.print?.(line);
   }
+}
+
+/** « DE »/« FROM » ou « M2P »/« MTP » tapé à un prompt de point (sauf si c'est une option du prompt). */
+function pointModifier(text: string, spec: PromptSpec): 'from' | 'm2p' | null {
+  const t = text.trim().toUpperCase().replace(/^_/, '');
+  const mod = t === 'DE' || t === 'FROM' || t === 'FRO' ? 'from' : t === 'M2P' || t === 'MTP' ? 'm2p' : null;
+  if (!mod) return null;
+  const clash = (spec.keywords ?? []).some((k) => [k.global, k.local, k.alias, k.local.replace(/[a-zé-ü]/g, '')].some((x) => x?.toUpperCase() === t));
+  return clash ? null : mod;
 }
 
 /** Raccourcis pour écrire les commandes : lèvent `CommandCancelled` sur Échap. */

@@ -286,6 +286,36 @@ function Geometry({ app, e }: { app: AppHost; e: Entity }) {
               </select>
             </Row>
           )}
+          <Row label="Style de cote">
+            <select className="pp-input" value={e.dimStyle ?? 'Standard'} onChange={(ev) => set({ dimStyle: ev.target.value === 'Standard' ? undefined : ev.target.value })}>
+              {Object.keys(app.doc.dimStyles).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Tolérance">
+            <select className="pp-input" value={e.tol ?? ''} onChange={(ev) => set({ tol: (ev.target.value || undefined) as typeof e.tol })}>
+              <option value="">Celle du style</option>
+              <option value="none">Aucune</option>
+              <option value="symmetric">Symétrique (±)</option>
+              <option value="deviation">Écarts (+/−)</option>
+              <option value="limits">Limites (max / min)</option>
+            </select>
+          </Row>
+          {e.tol && e.tol !== 'none' && (
+            <>
+              <Row label="Écart supérieur">
+                <NumInput value={e.tolPlus ?? 0} onCommit={(tolPlus) => set({ tolPlus })} />
+              </Row>
+              {e.tol !== 'symmetric' && (
+                <Row label="Écart inférieur">
+                  <NumInput value={e.tolMinus ?? 0} onCommit={(tolMinus) => set({ tolMinus })} />
+                </Row>
+              )}
+            </>
+          )}
           <Row label="Texte remplacé">
             <TextInput value={e.textOverride ?? ''} onCommit={(t) => set({ textOverride: t || undefined })} />
           </Row>

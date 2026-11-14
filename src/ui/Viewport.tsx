@@ -109,6 +109,10 @@ export function Viewport() {
         vp.setViewState(v);
         detectView();
       },
+      transitionTo: (v, ms) => vp.transitionTo(v, ms).then(detectView),
+      container: vp.container,
+      canvas: vp.canvas,
+      renderFrame: () => vp.renderFrame(),
       setAnalysis: (layers) => {
         if (analysis) {
           vp.scene.remove(analysis);
@@ -135,6 +139,7 @@ export function Viewport() {
         vp.requestRender();
       },
     };
+    setTimeout(() => app.syncSection(true), 0);
     let analysis: THREE.Group | null = null;
     let section: { origin: { x: number; y: number; z: number }; normal: { x: number; y: number; z: number } } | null = null;
     const offSettings = app.on('settings', () => {
@@ -225,6 +230,14 @@ function Marker({ kind, x, y }: { kind: SnapKind; x: number; y: number }) {
       );
     case 'NEA':
       return <path d={`M${x - s} ${y - s}H${x + s}L${x - s} ${y + s}H${x + s}Z`} {...common} />;
+    case 'EXT':
+      return (
+        <g {...common}>
+          <path d={`M${x - s - 3} ${y + 1}H${x - 3}M${x} ${y + 1}H${x + 3}M${x + 6} ${y + 1}H${x + s + 3}`} />
+        </g>
+      );
+    case 'PAR':
+      return <path d={`M${x - s} ${y + 3}L${x - 1} ${y - s + 1}M${x + 1} ${y + s - 1}L${x + s} ${y - 3}`} {...common} />;
     case 'FACE':
       return <path d={`M${x - s} ${y + 3}L${x - 2} ${y - s + 1}L${x + s} ${y - 3}L${x + 2} ${y + s - 1}Z`} {...common} stroke="#4ea1ff" fill="rgba(78,161,255,0.25)" />;
   }

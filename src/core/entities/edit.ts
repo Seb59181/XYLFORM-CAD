@@ -578,7 +578,8 @@ export function explodeEntity(e: Entity): NewEntity[] | null {
       const h = e.textHeight ?? 2.5;
       const lab = dimensionLabel(e, h);
       for (const l of [...g.lines, ...lab.lines]) for (let i = 0; i + 1 < l.length; i++) out.push({ ...base, type: 'LINE', start: l[i]!, end: l[i + 1]! });
-      out.push({ ...base, type: 'TEXT', position: lab.at, height: h, text: lab.text, rotation: lab.angle, align: 'center' });
+      for (const t of lab.texts) out.push({ ...base, type: 'TEXT', position: t.at, height: t.height, text: t.text, rotation: lab.angle, align: 'center' });
+      for (const f of g.fills) out.push({ ...base, type: 'HATCH', boundaries: [f.slice(0, 3)], pattern: 'SOLID', scale: 1, angle: 0 });
       return out;
     }
     case 'HATCH':
@@ -702,6 +703,11 @@ export function gripsOf(e: Entity): Grip[] {
     case 'UNDERLAY':
       return [{ point: e.position, apply: (p) => ({ position: p }) }];
     case 'DIMENSION':
+      if (e.dimType === 'leader')
+        return [
+          { point: e.p1, apply: (p) => ({ p1: p }) },
+          { point: e.p2, apply: (p) => ({ p2: p, offsetPoint: p }) },
+        ];
       return [
         { point: e.p1, apply: (p) => ({ p1: p }) },
         { point: e.p2, apply: (p) => ({ p2: p }) },

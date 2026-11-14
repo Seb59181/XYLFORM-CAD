@@ -4,12 +4,12 @@
  * Elles s'utilisent comme les autres cotes, sur le dessin comme sur une mise en plan.
  */
 import type { CommandContext, CommandDefinition, Vec3 } from '../../core/commands';
-import type { Entity, NewEntity } from '../../core/document/Document';
+import type { DimStyleDef, Entity, NewEntity } from '../../core/document/Document';
 import { dimensionGeometry } from '../../core/entities/geometry';
 import { bulgeArc, isArcBulge } from '../../core/entities/bulge';
 import { add, dist, polar, scale, sub } from '../../core/math/affine';
 import type { AppHost } from '../AppHost';
-import { cmd, fmt, getPoint, getPointOrKeyword, is, kw, pickEntity, pickRequired } from './helpers';
+import { cmd, fmt, getKeyword, getPoint, getPointOrKeyword, is, kw, pickEntity, pickRequired } from './helpers';
 
 type Dim = Extract<Entity, { type: 'DIMENSION' }>;
 type NewDim = Omit<Dim, 'handle' | 'layer'>;
@@ -252,4 +252,78 @@ const chained = (baseline: boolean): CommandDefinition =>
     },
   );
 
-export const dimensionCommands: CommandDefinition[] = [dimAngular, dimArc, dimOrdinate, chained(false), chained(true)];
+
+const ARROWS = [
+  { value: 'closed', label: 'Pleine (fermée)' },
+  { value: 'open', label: 'Ouverte' },
+  { value: 'oblique', label: 'Oblique (trait)' },
+  { value: 'dot', label: 'Point' },
+  { value: 'none', label: 'Aucune' },
+];
+const TOLS = [
+  { value: 'none', label: 'Aucune' },
+  { value: 'symmetric', label: 'Symétrique (± 0.1)' },
+  { value: 'deviation', label: 'Écarts (+0.1 / −0.05)' },
+  { value: 'limits', label: 'Limites (max / min)' },
+];
+
+/** Crée ou modifie un style de cote ; le style choisi devient courant. */
+const dimStyle = cmd('DIMSTYLE', 'STYLECOTE', ['DST', 'STYLESCOTE'], 'Styles de cote : flèches, décimales, séparateur, préfixe/suffixe, tolérances', async (ctx, app) => {
+  const doc = app.doc;
+  const names = Object.keys(doc.dimStyles);
+  const pick = await app.ui.form({
+    title: 'Styles de cote',
+    intro: 'Choisissez le style à modifier, ou « Nouveau style ». Le style devient le style courant des nouvelles cotes.',
+    fields: [
+      { key: 'name', label: 'Style', type: 'select', value: doc.currentDimStyle, options: [...names.map((n) => ({ value: n, label: n })), { value: '*new', label: 'Nouveau style…' }] },
+    ],
+    ok: 'Suivant',
+  });
+  if (!pick) return;
+  let name = String(pick.name);
+  if (name === '*new') {
+    const n = (await app.ui.prompt('Nouveau style de cote', `Style ${names.length + 1}`, 'Nom'))?.trim();
+    if (!n) return;
+    name = n;
+  }
+  const st: DimStyleDef = doc.dimStyles[name] ?? { ...doc.dimStyles[doc.currentDimStyle], name };
+  const v = await app.ui.form({
+    title: `Style de cote « ${name} »`,
+    fields: [
+      { key: 'arrow', label: 'Flèches', type: 'select', value: st.arrow ?? 'closed', options: ARROWS },
+      { key: 'arrowSize', label: 'Taille des flèches', type: 'number', value: st.arrowSize ?? app.sysvars.DIMASZ, min: 0, step: 0.5 },
+      { key: 'decimals', label: 'Décimales', type: 'number', value: st.decimals ?? app.sysvars.DIMDEC, min: 0, max: 8, step: 1 },
+      { key: 'sep', label: 'Séparateur décimal', type: 'select', value: st.sep ?? '.', options: [{ value: '.', label: 'Point (12.5)' }, { value: ',', label: 'Virgule (12,5)' }] },
+      { key: 'prefix', label: 'Préfixe', type: 'text', value: st.prefix ?? '', hint: 'ex. « Ø », « 4× »' },
+      { key: 'suffix', label: 'Suffixe', type: 'text', value: st.suffix ?? '', hint: 'ex. « mm », « H7 »' },
+      { key: 'tol', label: 'Tolérance', type: 'select', value: st.tol ?? 'none', options: TOLS },
+      { key: 'tolPlus', label: 'Écart supérieur', type: 'number', value: st.tolPlus ?? 0.1, step: 0.01 },
+      { key: 'tolMinus', label: 'Écart inférieur', type: 'number', value: st.tolMinus ?? 0.1, step: 0.01, hint: 'valeur positive = en dessous de la cote' },
+    ],
+    ok: 'Enregistrer',
+  });
+  if (!v) return;
+  doc.putDimStyle({
+    name,
+    arrow: v.arrow as DimStyleDef['arrow'],
+    arrowSize: Number(v.arrowSize),
+    decimals: Math.round(Number(v.decimals)),
+    sep: v.sep as '.' | ',',
+    prefix: String(v.prefix) || undefined,
+    suffix: String(v.suffix) || undefined,
+    tol: v.tol as DimStyleDef['tol'],
+    tolPlus: Number(v.tolPlus),
+    tolMinus: Number(v.tolMinus),
+  });
+  doc.currentDimStyle = name;
+  doc.changed();
+  ctx.print(`Style de cote courant : ${name}.`);
+});
+
+const dimAssoc = cmd('DIMASSOC', 'COTASSOC', ['CASSOC'], 'Cotes associatives : les nouvelles cotes suivent les objets cotés quand ils changent', async (ctx, app) => {
+  const v = await getKeyword(ctx, 'Cotes associatives', [kw('On', 'Activé', 'A', 'Les cotes suivent les objets'), kw('Off', 'Désactivé', 'D', 'Cotes figées')], app.settings.dimAssoc ? 'On' : 'Off');
+  app.set('dimAssoc', v === 'On');
+  ctx.print(v === 'On' ? 'Les nouvelles cotes suivent les objets cotés.' : 'Les nouvelles cotes restent figées.');
+});
+
+export const dimensionCommands: CommandDefinition[] = [dimStyle, dimAssoc, dimAngular, dimArc, dimOrdinate, chained(false), chained(true)];

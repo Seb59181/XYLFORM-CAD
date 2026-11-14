@@ -223,12 +223,109 @@ export function textBox(e: Extract<Entity, { type: 'TEXT' }>): Vec3[] {
 
 type Dimension = Extract<Entity, { type: 'DIMENSION' }>;
 
-/** Géométrie d'une cote alignée : lignes d'attache, ligne de cote, flèches, position du texte. */
-export function dimensionGeometry(e: Dimension, arrow = 2.5): { lines: Vec3[][]; textPos: Vec3; angle: number; value: number } {
+// ---------------------------------------------------------------------------------------------
+// Styles de cote
+// ---------------------------------------------------------------------------------------------
+
+export type ArrowKind = 'closed' | 'open' | 'oblique' | 'dot' | 'none';
+export type TolMode = 'none' | 'symmetric' | 'deviation' | 'limits';
+
+/** Style de cote résolu (champs absents : valeurs des variables DIMASZ / DIMDEC passées en argument). */
+export interface DimStyleLike {
+  arrow?: ArrowKind;
+  arrowSize?: number;
+  decimals?: number;
+  sep?: '.' | ',';
+  prefix?: string;
+  suffix?: string;
+  tol?: TolMode;
+  tolPlus?: number;
+  tolMinus?: number;
+}
+
+let dimStyleResolver: ((e: Dimension) => DimStyleLike | undefined) | null = null;
+
+/** Branche la résolution des styles de cote du dessin actif (appelé par l'application). */
+export function setDimStyleResolver(fn: ((e: Dimension) => DimStyleLike | undefined) | null): void {
+  dimStyleResolver = fn;
+}
+
+/** Style effectif d'une cote : style nommé, puis réglages propres à la cote (tolérance). */
+export function dimStyleOf(e: Dimension): DimStyleLike {
+  const st = { ...(dimStyleResolver?.(e) ?? {}) };
+  if (e.tol !== undefined) st.tol = e.tol;
+  if (e.tolPlus !== undefined) st.tolPlus = e.tolPlus;
+  if (e.tolMinus !== undefined) st.tolMinus = e.tolMinus;
+  return st;
+}
+
+let entityLookup: ((handle: string) => Entity | undefined) | null = null;
+
+/** Branche la recherche des objets du dessin actif (étiquettes, cotes associatives). */
+export function setEntityLookup(fn: ((handle: string) => Entity | undefined) | null): void {
+  entityLookup = fn;
+}
+
+let itemLookup: ((handle: string) => number | null) | null = null;
+
+/** Numéros de repère de nomenclature (bulles), fournis par l'application. */
+export function setItemLookup(fn: ((handle: string) => number | null) | null): void {
+  itemLookup = fn;
+}
+
+type ArrowPoly = Vec3[] & { arrow?: { tip: Vec3; back: Vec3; side?: Vec3 } };
+/** `side` : normale de la flèche dans le plan de la cote (XY par défaut). */
+const markArrow = (poly: Vec3[], tip: Vec3, back: Vec3, side?: Vec3): Vec3[] => Object.assign(poly, { arrow: { tip, back, side } });
+const cross3 = (a: Vec3, b: Vec3): Vec3 => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const dot3 = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+/** Remplace les flèches (polylignes marquées) selon le style : pleine, ouverte, oblique, point, aucune. */
+function styleArrows(lines: Vec3[][], kind: ArrowKind, size: number): { lines: Vec3[][]; fills: Vec3[][] } {
+  if (kind === 'open') return { lines, fills: [] };
+  const out: Vec3[][] = [];
+  const fills: Vec3[][] = [];
+  for (const l of lines as ArrowPoly[]) {
+    const a = l.arrow;
+    if (!a) {
+      out.push(l);
+      continue;
+    }
+    const n = a.side ?? { x: -a.back.y, y: a.back.x, z: 0 };
+    if (kind === 'closed') {
+      const p0 = add(a.tip, add(scale(a.back, size), scale(n, size * 0.17))), p2 = add(a.tip, add(scale(a.back, size), scale(n, -size * 0.17)));
+      out.push([p0, a.tip, p2, p0]);
+      fills.push([p0, a.tip, p2]);
+    } else if (kind === 'oblique') {
+      const d = norm(add(a.back, n));
+      out.push([add(a.tip, scale(d, size * 0.5)), add(a.tip, scale(d, -size * 0.5))]);
+    } else if (kind === 'dot') {
+      const r = size * 0.2;
+      const ring = Array.from({ length: 13 }, (_, i) => polar(a.tip, r, (i / 12) * TAU));
+      out.push(ring);
+      for (let i = 0; i < 12; i++) fills.push([a.tip, ring[i]!, ring[i + 1]!]);
+    }
+  }
+  return { lines: out, fills };
+}
+
+/**
+ * Géométrie d'une cote : lignes d'attache, ligne de cote, flèches (traits `lines`, triangles
+ * pleins `fills`), position et angle du texte, valeur mesurée.
+ */
+export function dimensionGeometry(e: Dimension, arrow = 2.5): { lines: Vec3[][]; fills: Vec3[][]; textPos: Vec3; angle: number; value: number } {
+  const st = dimStyleOf(e);
+  const size = st.arrowSize ?? arrow;
+  const g = rawDimensionGeometry(e, size);
+  return { ...g, ...styleArrows(g.lines, st.arrow ?? 'closed', size) };
+}
+
+function rawDimensionGeometry(e: Dimension, arrow: number): { lines: Vec3[][]; textPos: Vec3; angle: number; value: number } {
   if (e.dimType === 'radius' || e.dimType === 'diameter') return radialDimensionGeometry(e, arrow);
   if (e.dimType === 'angular') return angularDimensionGeometry(e, arrow);
   if (e.dimType === 'arclength') return arcLengthDimensionGeometry(e, arrow);
   if (e.dimType === 'ordinate') return ordinateDimensionGeometry(e, arrow);
+  if (e.dimType === 'leader') return leaderGeometry(e, arrow);
+  if (e.dim3d) return aligned3dGeometry(e, arrow);
   if (e.dimType === 'linear' || e.rotation !== undefined) return linearDimensionGeometry(e, arrow);
   const d = sub(e.p2, e.p1);
   const L = Math.hypot(d.x, d.y);
@@ -238,11 +335,8 @@ export function dimensionGeometry(e: Dimension, arrow = 2.5): { lines: Vec3[][];
   const a = add(e.p1, scale(n, off));
   const b = add(e.p2, scale(n, off));
   const ext = Math.sign(off || 1) * 1.25;
-  const head = (tip: Vec3, dirv: Vec3): Vec3[] => [
-    add(tip, add(scale(dirv, arrow), scale(n, arrow * 0.3))),
-    tip,
-    add(tip, add(scale(dirv, arrow), scale(n, -arrow * 0.3))),
-  ];
+  const head = (tip: Vec3, dirv: Vec3): Vec3[] =>
+    markArrow([add(tip, add(scale(dirv, arrow), scale(n, arrow * 0.3))), tip, add(tip, add(scale(dirv, arrow), scale(n, -arrow * 0.3)))], tip, dirv);
   const lines: Vec3[][] = [
     [e.p1, add(a, scale(n, ext))],
     [e.p2, add(b, scale(n, ext))],
@@ -251,6 +345,101 @@ export function dimensionGeometry(e: Dimension, arrow = 2.5): { lines: Vec3[][];
     head(b, scale(u, -1)),
   ];
   return { lines, textPos: add(lerp(a, b, 0.5), scale(n, Math.sign(off || 1) * 1.2)), angle: Math.atan2(u.y, u.x), value: L };
+}
+
+/** Cote alignée dans l'espace : ligne de cote décalée vers `offsetPoint`, dans le plan des trois points. */
+function aligned3dGeometry(e: Dimension, arrow: number) {
+  const d = sub(e.p2, e.p1);
+  const L = len(d);
+  const u = L > 1e-12 ? scale(d, 1 / L) : { x: 1, y: 0, z: 0 };
+  const w = sub(e.offsetPoint, e.p1);
+  let off = sub(w, scale(u, dot3(w, u)));
+  if (len(off) < 1e-9) off = scale(norm(cross3(u, Math.abs(u.z) < 0.9 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 })), 1e-6);
+  const n = norm(off);
+  const a = add(e.p1, off), b = add(e.p2, off);
+  const head = (tip: Vec3, dirv: Vec3): Vec3[] =>
+    markArrow([add(tip, add(scale(dirv, arrow), scale(n, arrow * 0.3))), tip, add(tip, add(scale(dirv, arrow), scale(n, -arrow * 0.3)))], tip, dirv, n);
+  const lines: Vec3[][] = [[e.p1, add(a, scale(n, 1.25))], [e.p2, add(b, scale(n, 1.25))], [a, b], head(a, u), head(b, scale(u, -1))];
+  return { lines, textPos: add(lerp(a, b, 0.5), scale(n, 1.2 + (e.textHeight ?? 2.5) * 0.6)), angle: 0, value: L };
+}
+
+/** Sens du palier d'un repère : vers la droite si le coude est à droite de la flèche. */
+const leaderSide = (e: Dimension) => (e.p2.x >= e.p1.x ? 1 : -1);
+
+/** Rayon de la bulle d'un repère (numéro entouré). */
+function balloonRadius(text: string, h: number): number {
+  return Math.max(textWidth(text, h) / 2 + h * 0.45, h * 1.05);
+}
+
+/** Repère : flèche en p1, ligne jusqu'au coude p2, palier horizontal (ou bulle) puis le texte. */
+function leaderGeometry(e: Dimension, arrow: number) {
+  const h = e.textHeight ?? 2.5;
+  const s = leaderSide(e);
+  const d = sub(e.p2, e.p1);
+  const L = len(d);
+  const back = L > 1e-12 ? scale(d, 1 / L) : { x: 1, y: 0, z: 0 };
+  const side = e.dim3d ? norm(cross3(back, Math.abs(back.z) < 0.9 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 })) : undefined;
+  const nn = side ?? { x: -back.y, y: back.x, z: 0 };
+  const head = markArrow([add(e.p1, add(scale(back, arrow), scale(nn, arrow * 0.3))), e.p1, add(e.p1, add(scale(back, arrow), scale(nn, -arrow * 0.3)))], e.p1, back, side);
+  const lines: Vec3[][] = [];
+  let textPos: Vec3;
+  if (e.balloon) {
+    const R = balloonRadius(leaderText(e), h);
+    const c = add(e.p2, { x: s * R, y: 0, z: 0 });
+    lines.push([e.p1, e.p2], Array.from({ length: 33 }, (_, i) => polar(c, R, (i / 32) * TAU)));
+    textPos = c;
+  } else {
+    const land = add(e.p2, { x: s * h, y: 0, z: 0 });
+    lines.push([e.p1, e.p2, land]);
+    textPos = land;
+  }
+  lines.push(head);
+  return { lines, textPos, angle: 0, value: 0 };
+}
+
+/** Texte d'une étiquette calculée sur l'objet désigné (aire, longueur, volume, nom, coordonnées). */
+function labelText(e: Dimension, st: DimStyleLike): string {
+  const f = (v: number) => fmtDim(v, st, st.decimals ?? 2);
+  const target = e.labelOf ? entityLookup?.(e.labelOf) : undefined;
+  const what = e.label ?? 'auto';
+  const coords = () => `X ${f(e.p1.x)}  Y ${f(e.p1.y)}${e.p1.z ? `  Z ${f(e.p1.z)}` : ''}`;
+  if (what === 'item') return String((e.labelOf && itemLookup?.(e.labelOf)) ?? '?');
+  if (what === 'coords' || !target) return coords();
+  const area = () => {
+    const a = target.type === '3DSOLID' ? target.display.area : entityArea(target);
+    return a === null ? null : `Aire ${f(a)} mm²`;
+  };
+  const length = () => {
+    const l = entityLength(target);
+    return l === null ? null : `${target.type === 'CIRCLE' ? 'Périmètre' : 'Longueur'} ${f(l)}`;
+  };
+  const volume = () => (target.type === '3DSOLID' && target.display.solidCount ? `Volume ${f(target.display.volume)} mm³` : null);
+  const radius = () => (target.type === 'CIRCLE' || target.type === 'ARC' ? `R${f(target.radius)} (Ø${f(target.radius * 2)})` : null);
+  const name = () => (target.type === '3DSOLID' && target.name ? target.name : entityLabel(target));
+  switch (what) {
+    case 'area':
+      return area() ?? name();
+    case 'length':
+      return length() ?? name();
+    case 'volume':
+      return volume() ?? name();
+    case 'radius':
+      return radius() ?? name();
+    case 'name':
+      return name();
+    default:
+      if (target.type === '3DSOLID') return [name(), volume(), area()].filter(Boolean).join('\n');
+      if (target.type === 'CIRCLE' || target.type === 'ARC') return [radius(), target.type === 'CIRCLE' ? area() : length()].filter(Boolean).join('\n');
+      return area() ?? length() ?? name();
+  }
+}
+
+/** Texte d'un repère : texte saisi (« <> » = valeur de l'étiquette) ou étiquette calculée. */
+function leaderText(e: Dimension): string {
+  const st = dimStyleOf(e);
+  const auto = e.label || e.labelOf ? labelText(e, st) : '';
+  if (e.textOverride) return e.textOverride.replace('<>', auto);
+  return auto || '?';
 }
 
 function linearDimensionGeometry(e: Dimension, arrow: number) {
@@ -263,11 +452,8 @@ function linearDimensionGeometry(e: Dimension, arrow: number) {
   const ab = sub(b, a);
   const L = ab.x * u.x + ab.y * u.y;
   const du = Math.sign(L || 1);
-  const head = (tip: Vec3, dirv: Vec3): Vec3[] => [
-    add(tip, add(scale(dirv, arrow), scale(n, arrow * 0.3))),
-    tip,
-    add(tip, add(scale(dirv, arrow), scale(n, -arrow * 0.3))),
-  ];
+  const head = (tip: Vec3, dirv: Vec3): Vec3[] =>
+    markArrow([add(tip, add(scale(dirv, arrow), scale(n, arrow * 0.3))), tip, add(tip, add(scale(dirv, arrow), scale(n, -arrow * 0.3)))], tip, dirv);
   const ext = (p: Vec3, q: Vec3) => {
     const s = Math.sign((q.x - p.x) * n.x + (q.y - p.y) * n.y) || 1;
     return [p, add(q, scale(n, s * 1.25))];
@@ -288,7 +474,7 @@ function radialDimensionGeometry(e: Dimension, arrow: number) {
   const tip = add(c, scale(dirv, rad));
   const start = e.dimType === 'diameter' ? sub(c, scale(dirv, rad)) : c;
   const n = { x: -dirv.y, y: dirv.x, z: 0 };
-  const head = (t: Vec3, back: Vec3): Vec3[] => [add(t, add(scale(back, arrow), scale(n, arrow * 0.3))), t, add(t, add(scale(back, arrow), scale(n, -arrow * 0.3)))];
+  const head = (t: Vec3, back: Vec3): Vec3[] => markArrow([add(t, add(scale(back, arrow), scale(n, arrow * 0.3))), t, add(t, add(scale(back, arrow), scale(n, -arrow * 0.3)))], t, back);
   const lines: Vec3[][] = [[start, e.offsetPoint], head(tip, scale(dirv, -1))];
   if (e.dimType === 'diameter') lines.push(head(start, dirv));
   let angle = Math.atan2(dirv.y, dirv.x);
@@ -307,7 +493,7 @@ function arcPolyline(c: Vec3, r: number, a0: number, sweep: number): Vec3[] {
 /** Flèche dont la pointe est en `tip`, orientée selon la tangente unitaire `t` (vers la pointe). */
 function arrowHead(tip: Vec3, t: Vec3, arrow: number): Vec3[] {
   const n = { x: -t.y, y: t.x, z: 0 };
-  return [add(tip, add(scale(t, -arrow), scale(n, arrow * 0.3))), tip, add(tip, add(scale(t, -arrow), scale(n, -arrow * 0.3)))];
+  return markArrow([add(tip, add(scale(t, -arrow), scale(n, arrow * 0.3))), tip, add(tip, add(scale(t, -arrow), scale(n, -arrow * 0.3)))], tip, scale(t, -1));
 }
 
 /** Ligne d'attache radiale de q jusqu'à l'arc de cote (rayon R autour de c), avec dépassement. */
@@ -409,20 +595,61 @@ function ordinateDimensionGeometry(e: Dimension, arrow: number) {
   return { lines: [pts], textPos: q, angle: isX ? Math.PI / 2 : 0, value: Math.abs(isX ? p.x - o.x : p.y - o.y) };
 }
 
-/** Texte affiché par une cote (valeur mesurée ou texte imposé). */
+/** Nombre d'une cote selon le style : décimales, séparateur (virgule à la française). */
+function fmtDim(v: number, st: DimStyleLike, precision: number): string {
+  const s = formatNumber(v, st.decimals ?? precision);
+  return st.sep === ',' ? s.replace('.', ',') : s;
+}
+
+/** Valeur affichée (unités, préfixe R/Ø/style, suffixe), sans tolérance. */
+function dimValueText(e: Dimension, st: DimStyleLike, precision: number, value = rawDimensionGeometry(e, 2.5).value): string {
+  const ang = e.dimType === 'angular';
+  const num = ang ? `${fmtDim((value * 180) / Math.PI, { ...st, decimals: Math.min(st.decimals ?? precision, 2) }, precision)}°` : fmtDim(value, st, precision);
+  const kind = e.dimType === 'radius' ? 'R' : e.dimType === 'diameter' ? 'Ø' : '';
+  return `${st.prefix ?? ''}${kind}${num}${ang ? '' : (st.suffix ?? '')}`;
+}
+
+/** Texte affiché par une cote (valeur mesurée ou texte imposé), tolérance symétrique comprise. */
 export function dimensionText(e: Dimension, precision = 2): string {
-  const v = dimensionGeometry(e).value;
-  const num = e.dimType === 'angular' ? `${formatNumber((v * 180) / Math.PI, Math.min(precision, 2))}°` : formatNumber(v, precision);
-  const prefix = e.dimType === 'radius' ? 'R' : e.dimType === 'diameter' ? 'Ø' : '';
-  if (e.textOverride) return e.textOverride.replace('<>', prefix + num);
-  return prefix + num;
+  if (e.dimType === 'leader') return leaderText(e);
+  const st = dimStyleOf(e);
+  let v = dimValueText(e, st, precision);
+  if (st.tol === 'symmetric' && st.tolPlus) v += ` ±${fmtDim(st.tolPlus, st, precision)}`;
+  if (e.textOverride) return e.textOverride.replace('<>', v);
+  if (st.tol === 'limits') {
+    const value = rawDimensionGeometry(e, 2.5).value;
+    return dimValueText(e, st, precision, value + (st.tolPlus ?? 0));
+  }
+  return v;
+}
+
+/** Écarts affichés à droite de la cote (tolérance « écarts ») ou valeur mini (« limites »). */
+function toleranceTexts(e: Dimension, st: DimStyleLike, precision: number): { upper: string; lower: string } | null {
+  if (e.textOverride || (st.tol !== 'deviation' && st.tol !== 'limits')) return null;
+  const plus = st.tolPlus ?? 0, minus = st.tolMinus ?? 0;
+  if (st.tol === 'limits') {
+    const value = rawDimensionGeometry(e, 2.5).value;
+    return { upper: dimValueText(e, st, precision, value + plus), lower: dimValueText(e, st, precision, value - minus) };
+  }
+  const f = (v: number, sign: string) => (v === 0 ? '0' : `${sign}${fmtDim(Math.abs(v), st, precision)}`);
+  return { upper: f(plus, plus < 0 ? '−' : '+'), lower: f(minus, minus < 0 ? '+' : '−') };
 }
 
 /**
  * Emplacement du texte d'une cote, commun à l'écran, au PDF, au SVG et au DXF : point de la ligne
  * de base (texte centré), angle lisible, et traits en plus (symbole d'arc ⌒ des longueurs d'arc).
  */
-export function dimensionLabel(e: Dimension, height: number, arrow = 2.5, precision = 2): { at: Vec3; angle: number; text: string; lines: Vec3[][] } {
+export interface DimensionLabel {
+  at: Vec3;
+  angle: number;
+  text: string;
+  lines: Vec3[][];
+  texts: { at: Vec3; text: string; height: number }[];
+  /** Cote 3D : textes centrés sur `at`, tournés vers l'écran. */
+  billboard?: boolean;
+}
+
+export function dimensionLabel(e: Dimension, height: number, arrow = 2.5, precision = 2): DimensionLabel {
   const g = dimensionGeometry(e, arrow);
   const text = dimensionText(e, precision);
   const readable = (a: number) => {
@@ -430,6 +657,24 @@ export function dimensionLabel(e: Dimension, height: number, arrow = 2.5, precis
     if (r > Math.PI / 2 + 1e-6 || r < -Math.PI / 2 - 1e-6) r += Math.PI;
     return Math.atan2(Math.sin(r), Math.cos(r));
   };
+  if (e.dimType === 'leader') {
+    // lignes alignées sur le palier (à gauche ou à droite), bloc centré verticalement ; en 3D le
+    // texte est centré sur `at` et tourné vers l'écran (`billboard`)
+    const rows = text.split('\n');
+    if (e.balloon || e.dim3d) {
+      const lh = height * 1.5;
+      const texts = rows.map((t, i) => ({ at: add(g.textPos, { x: 0, y: ((rows.length - 1) / 2 - i) * lh - (e.dim3d ? 0 : height / 2), z: 0 }), text: t, height }));
+      return { at: texts[0]!.at, angle: 0, text, lines: [], texts, billboard: !!e.dim3d };
+    }
+    const s = leaderSide(e);
+    const lh = height * 1.6;
+    const texts = rows.map((t, i) => {
+      const w = textWidth(t, height);
+      return { at: add(g.textPos, { x: s * (height * 0.4 + w / 2), y: ((rows.length - 1) / 2 - i) * lh - height / 2, z: 0 }), text: t, height };
+    });
+    return { at: texts[0]!.at, angle: 0, text, lines: [], texts };
+  }
+  if (e.dim3d) return { at: g.textPos, angle: 0, text, lines: [], texts: [{ at: g.textPos, text, height }], billboard: true };
   const a = readable(g.angle);
   const up = { x: -Math.sin(a), y: Math.cos(a), z: 0 };
   const u = { x: Math.cos(a), y: Math.sin(a), z: 0 };
@@ -443,7 +688,7 @@ export function dimensionLabel(e: Dimension, height: number, arrow = 2.5, precis
     const d = norm(sub(last, prev));
     const along = (d.x * u.x + d.y * u.y) >= 0 ? 1 : -1;
     at = add(add(last, scale(u, along * (height * 0.4 + w / 2))), scale(up, -height * 0.5));
-    return { at, angle: a, text, lines: [] };
+    return { at, angle: a, text, lines: [], texts: [{ at, text, height }] };
   }
   if (e.dimType === 'angular' || e.dimType === 'arclength') {
     const c = e.center ?? e.p1;
@@ -472,7 +717,28 @@ export function dimensionLabel(e: Dimension, height: number, arrow = 2.5, precis
       return add(top, add(scale(u, (-Math.cos(t) * w) / 2), scale(up, Math.sin(t) * height * 0.35)));
     }));
   }
-  return { at, angle: a, text, lines };
+  // tolérance en écarts (deux petits nombres à droite) ou en limites (deux valeurs superposées)
+  const tol = toleranceTexts(e, dimStyleOf(e), precision);
+  let texts = [{ at, text, height }];
+  if (tol) {
+    const th = height * 0.7;
+    if (dimStyleOf(e).tol === 'limits') {
+      texts = [
+        { at: add(at, scale(up, height * 0.45)), text: tol.upper, height: th },
+        { at: add(at, scale(up, -height * 0.45)), text: tol.lower, height: th },
+      ];
+    } else {
+      const w = textWidth(text, height), wt = Math.max(textWidth(tol.upper, th), textWidth(tol.lower, th));
+      const main = add(at, scale(u, -(wt + height * 0.3) / 2));
+      const x = add(main, scale(u, w / 2 + height * 0.3 + wt / 2));
+      texts = [
+        { at: main, text, height },
+        { at: add(x, scale(up, height * 0.5)), text: tol.upper, height: th },
+        { at: add(x, scale(up, -height * 0.15)), text: tol.lower, height: th },
+      ];
+    }
+  }
+  return { at: texts[0]!.at, angle: a, text: texts[0]!.text, lines, texts };
 }
 
 export function formatNumber(v: number, precision = 4): string {
@@ -488,12 +754,13 @@ const DIM_LABEL: Record<NonNullable<Dimension['dimType']>, string> = {
   angular: 'Cote angulaire',
   arclength: 'Cote de longueur d’arc',
   ordinate: 'Cote ordonnée',
+  leader: 'Repère',
 };
 
 /** Libellé de l'entité (palette Propriétés). */
 export function entityLabel(e: Entity): string {
   if (e.type === '3DSOLID') return e.display.solidCount === 0 ? 'Surface' : 'Solide 3D';
-  if (e.type === 'DIMENSION') return DIM_LABEL[e.dimType ?? 'aligned'];
+  if (e.type === 'DIMENSION') return e.dimType === 'leader' ? (e.balloon ? 'Bulle' : e.label || e.labelOf ? 'Étiquette' : 'Repère') : DIM_LABEL[e.dimType ?? 'aligned'];
   return TYPE_LABEL[e.type];
 }
 
@@ -501,7 +768,7 @@ export function entityLabel(e: Entity): string {
 // Accrochage aux objets
 // ---------------------------------------------------------------------------
 
-export type SnapKind = 'END' | 'MID' | 'CEN' | 'QUA' | 'NOD' | 'INT' | 'NEA' | 'INS' | 'PER' | 'TAN' | 'FACE';
+export type SnapKind = 'END' | 'MID' | 'CEN' | 'QUA' | 'NOD' | 'INT' | 'NEA' | 'INS' | 'PER' | 'TAN' | 'EXT' | 'PAR' | 'FACE';
 
 export const SNAP_LABEL: Record<SnapKind, string> = {
   END: 'Extrémité',
@@ -514,6 +781,8 @@ export const SNAP_LABEL: Record<SnapKind, string> = {
   INS: 'Insertion',
   PER: 'Perpendiculaire',
   TAN: 'Tangente',
+  EXT: 'Prolongement',
+  PAR: 'Parallèle',
   FACE: 'Sur la face',
 };
 
@@ -617,6 +886,60 @@ export function snapPoints(e: Entity): SnapCandidate[] {
     }
   }
   return out;
+}
+
+/**
+ * Points d'accroche nommés d'un objet, pour les cotes associatives : extrémités, milieu, centre,
+ * sommets de polyligne (`v3`), quadrants (`q0`…`q3`).
+ */
+export function assocRefs(e: Entity): { ref: string; point: Vec3 }[] {
+  switch (e.type) {
+    case 'LINE':
+      return [
+        { ref: 'start', point: e.start },
+        { ref: 'end', point: e.end },
+        { ref: 'mid', point: lerp(e.start, e.end, 0.5) },
+      ];
+    case 'POLYLINE': {
+      const out = e.points.map((p, i) => ({ ref: `v${i}`, point: p }));
+      const n = e.points.length;
+      for (let i = 0; i < (e.closed ? n : n - 1); i++) {
+        const a = e.points[i]!, b = e.points[(i + 1) % n]!, bu = e.bulges?.[i];
+        out.push({ ref: `m${i}`, point: isArcBulge(bu) ? bulgePoint(a, b, bu, 0.5) : lerp(a, b, 0.5) });
+      }
+      return out;
+    }
+    case 'CIRCLE':
+      return [{ ref: 'center', point: e.center }, ...[0, 1, 2, 3].map((i) => ({ ref: `q${i}`, point: polar(e.center, e.radius, (i * Math.PI) / 2) }))];
+    case 'ARC':
+      return [
+        { ref: 'center', point: e.center },
+        { ref: 'start', point: polar(e.center, e.radius, e.startAngle) },
+        { ref: 'end', point: polar(e.center, e.radius, e.endAngle) },
+        { ref: 'mid', point: polar(e.center, e.radius, e.startAngle + arcSweep(e.startAngle, e.endAngle) / 2) },
+      ];
+    case 'POINT':
+      return [{ ref: 'pos', point: e.position }];
+    case 'ELLIPSE':
+      return [{ ref: 'center', point: e.center }];
+    default:
+      return [];
+  }
+}
+
+/** Point d'accroche `ref` d'un objet (cote associative) ; `a<angle>` = point du cercle à cet angle. */
+export function assocPoint(e: Entity, ref: string): Vec3 | null {
+  if (ref.startsWith('a') && (e.type === 'CIRCLE' || e.type === 'ARC')) return polar(e.center, e.radius, Number(ref.slice(1)));
+  return assocRefs(e).find((r) => r.ref === ref)?.point ?? null;
+}
+
+/** Accroche d'un point posé sur un objet : point nommé confondu, ou point d'un cercle (cotes de rayon). */
+export function findAssocRef(e: Entity, p: Vec3, onCircle = false): string | null {
+  const tol = 1e-6 * Math.max(1, Math.abs(p.x), Math.abs(p.y));
+  const hit = assocRefs(e).find((r) => dist(r.point, p) <= tol);
+  if (hit) return hit.ref;
+  if (onCircle && (e.type === 'CIRCLE' || e.type === 'ARC') && Math.abs(dist(e.center, p) - e.radius) <= tol * 10) return `a${Math.atan2(p.y - e.center.y, p.x - e.center.x)}`;
+  return null;
 }
 
 /** Centre du cercle passant par trois points de l'espace (null s'ils sont alignés). */

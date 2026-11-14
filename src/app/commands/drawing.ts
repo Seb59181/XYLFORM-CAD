@@ -4,8 +4,9 @@
  * modèle ; EXPORTPDF : impression vectorielle à l'échelle (feuille ou étendue du dessin).
  */
 import type { CommandDefinition, Vec3 } from '../../core/commands';
-import type { DrawingSheet, DrawingView, Entity, PaperFormat } from '../../core/document/Document';
-import { curvePoints, dimensionGeometry, dimensionLabel, entityBBox, hatchSegments, textLayout } from '../../core/entities/geometry';
+import type { DrawingSheet, DrawingView, Entity, NewEntity, PaperFormat } from '../../core/document/Document';
+import { bomEntities, bomRows, computeSection, detailEntities, sectionEntities, type SectionGeometry } from '../drawingExtra';
+import { assocRefs, curvePoints, dimensionGeometry, dimensionLabel, entityBBox, hatchSegments, textLayout } from '../../core/entities/geometry';
 import { patternOf } from '../../core/linetypes';
 import { writePdf, type PdfItem } from '../../io/pdf';
 import { saveFile } from '../../io/fileAccess';
@@ -201,7 +202,7 @@ const drawing = cmd('DRAWING', 'MISEENPLAN', ['MEP', 'VUESBASE', 'VIEWBASE', 'PL
   if (app.doc.layer(LAYERS.dims.name)) app.doc.setCurrentLayer(LAYERS.dims.name);
   const n = sheet.views.reduce((s, x) => s + x.handles.length, 0);
   ctx.print(`${sheet.name} : ${laid.length} vue(s), ${n} trait(s)${format ? `, cadre ${format} au ${scaleLabel(k)}` : ''}. Calque courant : ${LAYERS.dims.name}.`);
-  ctx.print('Cotez avec COTLIN, COTALI, COTDIA, COTRAYON (accrochage aux extrémités et centres) ; MAJVUES après une modification du modèle ; EXPORTPDF pour imprimer.');
+  ctx.print('Cotez avec COTLIN, COTALI, COTDIA, COTRAYON (accrochées aux extrémités et centres, elles suivent MAJVUES) ; VUECOUPE, VUEDETAIL, NOMENCLATURE, BULLE, RAPPELTROU ; EXPORTPDF pour imprimer.');
   if (app.settings.workspace !== '2d') {
     app.set('workspace', '2d');
     await new Promise((r) => setTimeout(r, 700)); // fin de l'animation vers la vue de dessus
@@ -214,21 +215,95 @@ const drawing = cmd('DRAWING', 'MISEENPLAN', ['MEP', 'VUESBASE', 'VIEWBASE', 'PL
 type ViewGeom = Awaited<ReturnType<typeof computeView>>;
 
 /** Nouvelle projection d'une vue d'après le modèle actuel (mêmes position et options). */
-async function regenerate(app: AppHost, sheet: DrawingSheet, view: DrawingView): Promise<{ id: string; sources: string[]; geom: ViewGeom } | null> {
+async function regenerate(app: AppHost, sheet: DrawingSheet, view: DrawingView): Promise<{ id: string; sources: string[]; geom: ViewGeom; section?: SectionGeometry } | null> {
   const sources = view.sources.filter((h) => app.doc.get(h)?.type === '3DSOLID');
   if (!sources.length) return null;
+  if (view.detail) return { id: view.id, sources, geom: { visible: [], hidden: [], smooth: [], axes: [], extent: null } };
+  if (view.section) {
+    const section = await computeSection(app, sources, view.section, view.dir, view.xDir, { smooth: view.smooth, axes: view.axes, ext: AXIS_EXT * sheet.k });
+    return { id: view.id, sources, geom: section, section };
+  }
   const geom = await computeView(app, sources, view.dir, view.xDir, { hidden: view.hidden, smooth: view.smooth, axes: view.axes, ext: AXIS_EXT * sheet.k });
   return { id: view.id, sources, geom };
 }
 
-const updateViews = cmd('VIEWUPDATE', 'MAJVUES', ['MAJMEP', 'ACTUALISERVUES', 'VIEWUPD'], 'Met à jour les vues des mises en plan d’après le modèle 3D modifié', async (ctx, app) => {
+type Dim = Extract<Entity, { type: 'DIMENSION' }>;
+
+/**
+ * Cotes associées aux traits d'une vue régénérée : chaque point accroché est rattaché au point
+ * nommé du même genre (extrémité, centre…) le plus proche parmi les nouveaux traits de la vue.
+ */
+type ViewLink = { dim: string; field: 'p1' | 'p2' | 'center'; old: Vec3; ref: string; layer: string; dir: Vec3 | null };
+
+/** Emprise des contours d'une vue (traits visibles et cachés, sans les axes qui dépassent). */
+function outlineBox(app: AppHost, handles: string[]): { x0: number; y0: number; w: number; h: number } | null {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const h of handles) {
+    const e = app.doc.get(h);
+    if (!e || (e.layer !== LAYERS.visible.name && e.layer !== LAYERS.hidden.name)) continue;
+    for (const pl of curvePoints(e)) for (const p of pl) (x0 = Math.min(x0, p.x)), (y0 = Math.min(y0, p.y)), (x1 = Math.max(x1, p.x)), (y1 = Math.max(y1, p.y));
+  }
+  return Number.isFinite(x0) ? { x0, y0, w: Math.max(x1 - x0, 1e-6), h: Math.max(y1 - y0, 1e-6) } : null;
+}
+
+const lineDir = (e: Entity | undefined): Vec3 | null => {
+  if (e?.type !== 'LINE') return null;
+  const L = Math.hypot(e.end.x - e.start.x, e.end.y - e.start.y);
+  return L > 1e-9 ? { x: (e.end.x - e.start.x) / L, y: (e.end.y - e.start.y) / L, z: 0 } : null;
+};
+
+/**
+ * Cotes associées aux traits d'une vue régénérée : chaque point accroché est rattaché au point
+ * du même genre (extrémité, centre…), sur un trait du même calque et de même direction, le plus
+ * proche en position relative dans la vue (une pièce allongée garde ses coins « au bout »).
+ */
+function relinkViewDims(app: AppHost, links: ViewLink[], fresh: string[], before: ReturnType<typeof outlineBox>): number {
+  const after = outlineBox(app, fresh);
+  const norm = (p: Vec3, b: typeof before) => (b ? { x: (p.x - b.x0) / b.w, y: (p.y - b.y0) / b.h } : { x: p.x, y: p.y });
+  const kind = (ref: string) => (ref === 'center' ? 'c' : ref.startsWith('q') || ref.startsWith('a') ? 'q' : 'p');
+  const cands = fresh.map((h) => app.doc.get(h)).filter((e): e is Entity => !!e).flatMap((e) => assocRefs(e).map((r) => ({ handle: e.handle, ...r, layer: e.layer, dir: lineDir(e) })));
+  const byDim = new Map<string, typeof links>();
+  for (const l of links) byDim.set(l.dim, [...(byDim.get(l.dim) ?? []), l]);
+  let n = 0;
+  for (const [h, ls] of byDim) {
+    const d = app.doc.get(h) as Dim | undefined;
+    if (!d) continue;
+    const patch: Partial<Dim> = {};
+    const assoc = [...(d.assoc ?? [])];
+    const deltas: Vec3[] = [];
+    for (const l of ls) {
+      let best: (typeof cands)[number] | null = null, bd = 0.35;
+      const o = norm(l.old, before);
+      for (const c of cands) {
+        if (kind(c.ref) !== kind(l.ref) || c.layer !== l.layer) continue;
+        if (l.dir && (!c.dir || Math.abs(l.dir.x * c.dir.y - l.dir.y * c.dir.x) > 1e-3)) continue;
+        const q = norm(c.point, after);
+        const dd = Math.hypot(q.x - o.x, q.y - o.y);
+        if (dd < bd) (bd = dd), (best = c);
+      }
+      if (!best) continue;
+      patch[l.field] = best.point;
+      deltas.push({ x: best.point.x - l.old.x, y: best.point.y - l.old.y, z: 0 });
+      assoc.push({ field: l.field, handle: best.handle, ref: best.ref });
+    }
+    if (!deltas.length) continue;
+    const t = deltas[0]!;
+    if (ls.length === deltas.length && deltas.every((v) => Math.abs(v.x - t.x) + Math.abs(v.y - t.y) < 1e-9)) patch.offsetPoint = { x: d.offsetPoint.x + t.x, y: d.offsetPoint.y + t.y, z: d.offsetPoint.z };
+    app.doc.replaceEntity(h, { ...patch, assoc } as Partial<NewEntity>);
+    n++;
+  }
+  return n;
+}
+
+const updateViews = cmd('VIEWUPDATE', 'MAJVUES', ['MAJMEP', 'ACTUALISERVUES', 'VIEWUPD'], 'Met à jour les vues des mises en plan d’après le modèle 3D modifié (les cotes associées suivent)', async (ctx, app) => {
   const sheets = app.doc.sheets;
   if (!sheets.length) return ctx.print('Aucune mise en plan dans ce dessin (MISEENPLAN).');
   await app.ensureKernel(ctx);
   ctx.print('Mise à jour des vues…');
-  const plans: { sheet: DrawingSheet; views: { id: string; sources: string[]; geom: ViewGeom }[] }[] = [];
+  type Regen = NonNullable<Awaited<ReturnType<typeof regenerate>>>;
+  const plans: { sheet: DrawingSheet; views: Regen[] }[] = [];
   for (const s of sheets) {
-    const views: { id: string; sources: string[]; geom: ViewGeom }[] = [];
+    const views: Regen[] = [];
     for (const v of s.views) {
       const r = await regenerate(app, s, v);
       if (r) views.push(r);
@@ -236,21 +311,48 @@ const updateViews = cmd('VIEWUPDATE', 'MAJVUES', ['MAJMEP', 'ACTUALISERVUES', 'V
     }
     plans.push({ sheet: s, views });
   }
-  let n = 0;
+  let n = 0, dims = 0;
   app.doc.transaction('Mettre à jour les vues', () => {
     for (const { sheet, views } of plans) {
-      const next: DrawingView[] = sheet.views.map((old) => {
+      const done = new Map<string, DrawingView>();
+      const order = [...sheet.views].sort((a, b) => (a.detail ? 1 : 0) - (b.detail ? 1 : 0));
+      for (const old of order) {
         const r = views.find((x) => x.id === old.id);
-        if (!r) return old;
+        if (!r) {
+          done.set(old.id, old);
+          continue;
+        }
+        // cotes accrochées aux anciens traits : point et genre retenus avant l'effacement
+        const own = new Set(old.handles);
+        const links: ViewLink[] = [];
+        for (const d of app.doc.all())
+          if (d.type === 'DIMENSION')
+            for (const a of d.assoc ?? []) {
+              const src = app.doc.get(a.handle);
+              if (own.has(a.handle) && d[a.field] && src) links.push({ dim: d.handle, field: a.field, old: d[a.field]!, ref: a.ref, layer: src.layer, dir: lineDir(src) });
+            }
+        const before = outlineBox(app, old.handles);
         for (const h of old.handles) if (app.doc.get(h)) app.doc.removeEntity(h);
-        const handles = viewEntities(r.geom, old.at).map((e) => app.doc.addEntity(e));
+        let fresh: NewEntity[];
+        if (old.detail) {
+          const parent = done.get(old.detail.parent) ?? sheet.views.find((v) => v.id === old.detail!.parent);
+          fresh = parent ? detailEntities(app, parent, old.detail, old.at, sheet.k) : [];
+        } else if (r.section) fresh = sectionEntities(r.section, old.at, old.section!.label, sheet.k);
+        else fresh = viewEntities(r.geom, old.at);
+        const handles = fresh.map((e) => app.doc.addEntity(e));
+        dims += relinkViewDims(app, links, handles, before);
         n++;
-        return { ...old, sources: r.sources, handles };
-      });
-      app.doc.putSheet({ ...sheet, views: next });
+        done.set(old.id, { ...old, sources: r.sources, handles });
+      }
+      let next: DrawingSheet = { ...sheet, views: sheet.views.map((v) => done.get(v.id) ?? v) };
+      if (sheet.bom) {
+        for (const h of sheet.bom.handles) if (app.doc.get(h)) app.doc.removeEntity(h);
+        next = { ...next, bom: { at: sheet.bom.at, handles: bomEntities(bomRows(app, next), sheet.bom.at, sheet.k).map((e) => app.doc.addEntity(e)) } };
+      }
+      app.doc.putSheet(next);
     }
   });
-  ctx.print(`${n} vue(s) mise(s) à jour. Les cotes ne suivent pas : vérifiez-les si le modèle a changé de taille.`);
+  ctx.print(`${n} vue(s) mise(s) à jour${dims ? `, ${dims} cote(s) recalée(s)` : ''}.`);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -260,6 +362,7 @@ const updateViews = cmd('VIEWUPDATE', 'MAJVUES', ['MAJMEP', 'ACTUALISERVUES', 'V
 /** Éléments PDF des entités, dans le repère papier (mm) : p_papier = (p − o) / k. */
 function pdfItems(app: AppHost, es: Entity[], o: Vec3, k: number, mono: boolean): PdfItem[] {
   const items: PdfItem[] = [];
+  es = es.filter((e) => !(e.type === 'LINE' && e.guide));
   const P = (p: Vec3): [number, number] => [(p.x - o.x) / k, (p.y - o.y) / k];
   const colorOf = (e: Entity) => {
     const c = app.doc.colorOf(e).toLowerCase();
@@ -290,8 +393,11 @@ function pdfItems(app: AppHost, es: Entity[], o: Vec3, k: number, mono: boolean)
       const h = e.textHeight ?? app.sysvars.DIMTXT;
       const lab = dimensionLabel(e, h, app.sysvars.DIMASZ, app.sysvars.DIMDEC);
       for (const l of [...g.lines, ...lab.lines]) items.push({ kind: 'path', pts: l.map(P), stroke: color, width: 0.18 });
-      const at = P(lab.at);
-      items.push({ kind: 'text', x: at[0], y: at[1], size: h / 0.716 / k, text: lab.text, angle: lab.angle, align: 'center', color });
+      for (const t of g.fills) items.push({ kind: 'path', pts: [...t, t[0]!].map(P), fill: color, width: 0 });
+      for (const t of lab.texts) {
+        const at = P(t.at);
+        items.push({ kind: 'text', x: at[0], y: at[1], size: t.height / 0.716 / k, text: t.text, angle: lab.angle, align: 'center', color });
+      }
       continue;
     }
     if (e.type === 'HATCH') {
@@ -314,7 +420,7 @@ function inWindow(e: Entity, x0: number, y0: number, x1: number, y1: number): bo
 const exportPdf = cmd('EXPORTPDF', 'EXPORTPDF', ['PDF', 'PDFOUT', 'TRACER', 'PLOT', 'IMPRIMER'], 'Exporte une mise en plan (ou le dessin 2D) en PDF vectoriel à l’échelle', async (ctx, app) => {
   const framed = app.doc.sheets.filter((s) => s.format);
   let o: Vec3, k: number, W: number, H: number, name: string;
-  let pool: Entity[] = app.visible().filter((e) => e.type !== '3DSOLID' && e.type !== 'UNDERLAY');
+  let pool: Entity[] = app.visible().filter((e) => e.type !== '3DSOLID' && e.type !== 'UNDERLAY' && !(e.type === 'LINE' && e.guide));
   let mono = true;
   if (framed.length) {
     const opts = [...framed.map((s) => ({ value: s.id, label: `${s.name} : ${s.format} ${s.landscape ? 'paysage' : 'portrait'}, ${scaleLabel(s.k)}${s.title ? ` (${s.title})` : ''}` })), { value: 'ext', label: 'Étendue du dessin 2D (ajustée au papier)' }];

@@ -509,11 +509,13 @@ const dimAligned = cmd('DIMALIGNED', 'COTALI', ['DAL', 'COTE'], 'Cote alignée e
     else if (e.type === 'CIRCLE') (p1 = polar(e.center, e.radius, Math.PI)), (p2 = polar(e.center, e.radius, 0));
     else (p1 = e.type === 'POLYLINE' ? e.points[0]! : p1!), (p2 = e.type === 'POLYLINE' ? e.points[1] ?? e.points[0]! : p1!);
   }
+  // points à des hauteurs différentes (arêtes de solides…) : cote dans l'espace, texte face à l'écran
+  const is3d = (q: Vec3) => Math.abs(p1.z - p2.z) > 1e-9 || Math.abs(q.z - p1.z) > 1e-9 ? { dim3d: true } : {};
   const loc = await getPoint(ctx, 'Spécifiez l’emplacement de la ligne de cote', {
     noRubberBand: true,
-    preview: (p) => dimPreview({ type: 'DIMENSION', dimType: 'aligned', p1, p2, offsetPoint: p }),
+    preview: (p) => dimPreview({ type: 'DIMENSION', dimType: 'aligned', p1, p2, offsetPoint: p, ...is3d(p) }),
   });
-  app.addEntity({ type: 'DIMENSION', dimType: 'aligned', p1, p2, offsetPoint: loc, textHeight: app.sysvars.DIMTXT });
+  app.addEntity({ type: 'DIMENSION', dimType: 'aligned', p1, p2, offsetPoint: loc, textHeight: app.sysvars.DIMTXT, ...is3d(loc) });
 });
 
 const dimLinear = cmd('DIMLINEAR', 'COTLIN', ['DLI'], 'Cote linéaire horizontale ou verticale', async (ctx, app) => {

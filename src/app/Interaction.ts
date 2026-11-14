@@ -74,6 +74,10 @@ export class Interaction {
   state: OverlayState = { cursor: null, marker: null, box: null, tip: null, pickbox: true, crosshair: true, guides: [], acquired: [] };
   /** Points accrochés récemment (repérage d'alignement, repérage d'objets). */
   private acquired: Vec3[] = [];
+  /** Segments droits survolés récemment (accrochages Prolongement et Parallèle). */
+  private acquiredSegs: [Vec3, Vec3][] = [];
+  /** Segment droit sous le curseur au dernier accrochage. */
+  private hoverSeg: [Vec3, Vec3] | null = null;
   /** Manipulateur 3D de la sélection. */
   readonly gizmo: TransformGizmo;
   private drag: {
@@ -129,6 +133,7 @@ export class Interaction {
       app.on('input', () => this.app.settings.dyn && this.refresh()),
       app.on('command', () => {
         this.acquired = [];
+        this.acquiredSegs = [];
         this.boxStart = null;
         this.setState({ box: null });
         this.refresh();
@@ -416,6 +421,7 @@ export class Interaction {
   // =========================================================================
 
   private snap(sx: number, sy: number, spec: PromptSpec | null): { point: Vec3; kind: SnapKind } | null {
+    this.hoverSeg = null;
     if (!this.app.settings.osnap) return null;
     const modes = new Set(this.app.settings.osnapModes);
     if (!modes.size) return null;
@@ -447,6 +453,8 @@ export class Interaction {
       const pl = polys[curve.poly]!;
       const a = pl[curve.seg]!, b = pl[Math.min(curve.seg + 1, pl.length - 1)]!;
       const onCurve = { x: a.x + (b.x - a.x) * curve.t, y: a.y + (b.y - a.y) * curve.t, z: a.z + (b.z - a.z) * curve.t };
+      if (e.type === 'LINE') this.hoverSeg = [e.start, e.end];
+      else if (e.type === 'POLYLINE' && !e.bulges?.[curve.seg]) this.hoverSeg = [a, b];
       if (base) {
         if (e.type === 'LINE' || (e.type === 'POLYLINE' && !(e.bulges?.[curve.seg]))) {
           const s = e.type === 'LINE' ? [e.start, e.end] : [a, b];
@@ -528,6 +536,10 @@ export class Interaction {
     }
     const s = this.snap(sx, sy, spec);
     if (s) return { point: s.point, snap: s, tip: null, tracking: null };
+    if (spec?.kind === 'point') {
+      const t = this.trackSegments(sx, sy, spec);
+      if (t) return t;
+    }
     if (this.app.settings.infer && spec?.kind === 'point') {
       const inf = this.infer(sx, sy, spec);
       if (inf) return inf;
@@ -561,6 +573,52 @@ export class Interaction {
       }
     }
     return { point: p, snap: null, tip: null, tracking: null };
+  }
+
+  /**
+   * Prolongement d'un segment survolé au-delà de ses extrémités, ou parallèle à ce segment depuis
+   * le point de base (accrochages EXT et PAR).
+   */
+  private trackSegments(sx: number, sy: number, spec: PromptSpec): ResolvedPoint | null {
+    const st = this.app.settings;
+    if (!st.osnap || !this.acquiredSegs.length) return null;
+    const modes = new Set(st.osnapModes);
+    const ray = this.ray(sx, sy);
+    const color = '#d86bff';
+    const scr = (p: Vec3) => {
+      const q = this.project(p);
+      return q.w > 0 ? Math.hypot(q.x - sx, q.y - sy) : Infinity;
+    };
+    let best: { r: ResolvedPoint; d: number } | null = null;
+    const keep = (r: ResolvedPoint, d: number) => {
+      if (d <= INFER && (!best || d < best.d)) best = { r, d };
+    };
+    const planar = (p: Vec3, z: number) => (this.vp.workspace === '3d' ? p : { ...p, z });
+    for (const [a, b] of this.acquiredSegs) {
+      const u = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
+      const L = Math.hypot(u.x, u.y, u.z);
+      if (L < 1e-9) continue;
+      if (modes.has('EXT')) {
+        const { p, t } = this.onLine(ray, a, u);
+        // au-delà d'une extrémité seulement (sur le segment, c'est l'accrochage Proche)
+        if (t > 1 + 1e-6 || t < -1e-6) {
+          const from = t > 1 ? b : a;
+          const g = this.guide(from, p, color, true);
+          const len = Math.hypot(p.x - from.x, p.y - from.y, p.z - from.z);
+          keep({ point: p, snap: { kind: 'EXT', point: p }, tip: `Prolongement : ${len.toFixed(3).replace(/\.?0+$/, '')}`, tracking: null, guides: g ? [g] : [] }, scr(p));
+        }
+      }
+      const base = spec.basePoint;
+      if (base && modes.has('PAR')) {
+        const { p, t } = this.onLine(ray, base, u);
+        if (Math.abs(t) * L > this.vp.worldUnitsPerPixel() * 20) {
+          const q = planar(p, base.z);
+          const g = this.guide(base, q, color, true);
+          keep({ point: q, snap: { kind: 'PAR', point: q }, tip: `Parallèle : ${(Math.abs(t) * L).toFixed(3).replace(/\.?0+$/, '')}`, tracking: null, guides: g ? [g] : [] }, scr(q) + 1);
+        }
+      }
+    }
+    return (best as { r: ResolvedPoint } | null)?.r ?? null;
   }
 
   // =========================================================================
@@ -883,6 +941,11 @@ export class Interaction {
       if (r.snap && this.app.settings.infer && ACQUIRE.includes(r.snap.kind)) {
         const q = r.snap.point;
         if (!this.acquired.some((a) => Math.hypot(a.x - q.x, a.y - q.y, a.z - q.z) < 1e-9)) this.acquired = [q, ...this.acquired].slice(0, 4);
+      }
+      if (this.hoverSeg) {
+        const [a, b] = this.hoverSeg;
+        const same = (s: [Vec3, Vec3]) => Math.hypot(s[0].x - a.x, s[0].y - a.y, s[0].z - a.z) + Math.hypot(s[1].x - b.x, s[1].y - b.y, s[1].z - b.z) < 1e-9;
+        if (!this.acquiredSegs.some(same)) this.acquiredSegs = [this.hoverSeg, ...this.acquiredSegs].slice(0, 3);
       }
       patch.guides = r.guides ?? [];
       patch.acquired = this.app.settings.infer ? this.acquired.map((a) => this.project(a)).filter((a) => a.w > 0).map(pick2) : [];

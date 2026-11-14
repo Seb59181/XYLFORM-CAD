@@ -216,13 +216,14 @@ export function extentOf(cs: HlrCurve[]): { min: P2; max: P2 } | null {
 // Entités
 // ---------------------------------------------------------------------------------------------
 
-export const LAYERS: Record<'visible' | 'hidden' | 'axes' | 'smooth' | 'frame' | 'dims', { name: string; color: string; lineweight: number; linetype?: Linetype }> = {
+export const LAYERS: Record<'visible' | 'hidden' | 'axes' | 'smooth' | 'frame' | 'dims' | 'hatch', { name: string; color: string; lineweight: number; linetype?: Linetype }> = {
   visible: { name: 'MEP-Visible', color: '#ffffff', lineweight: 0.5 },
   hidden: { name: 'MEP-Cachées', color: '#9aa6b5', lineweight: 0.25, linetype: 'HIDDEN' },
   axes: { name: 'MEP-Axes', color: '#e06c5a', lineweight: 0.18, linetype: 'CENTER' },
   smooth: { name: 'MEP-Tangentes', color: '#7d8896', lineweight: 0.18 },
   frame: { name: 'MEP-Cadre', color: '#ffffff', lineweight: 0.35 },
   dims: { name: 'MEP-Cotes', color: '#4fa8e8', lineweight: 0.25 },
+  hatch: { name: 'MEP-Hachures', color: '#9aa6b5', lineweight: 0.13 },
 };
 
 export function ensureDrawingLayers(app: AppHost): void {

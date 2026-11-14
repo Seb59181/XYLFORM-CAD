@@ -5,6 +5,29 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.2.0 — 14 novembre 2026
+
+Xylform CAD 1.2.0 : cotation et mise en plan complètes, construction plus rapide, blocs, plans de coupe et mode Présentation.
+
+- **Styles de cote** (`STYLECOTE`, liste déroulante dans l'onglet Annoter) : type et taille des flèches (pleine, ouverte, oblique, point, aucune), décimales, séparateur décimal, préfixe et suffixe, tolérances (symétrique ±, écarts +/− ou limites). Chaque cote garde son style ; la palette Propriétés le change, avec la tolérance. Les flèches par défaut sont maintenant **pleines**.
+- **Repères et étiquettes** (onglet Annoter) : **`REPERE`** ligne de repère avec texte libre ; **`ETIQUETTE`** pose une étiquette qui lit l'objet visé (longueur, rayon, aire, volume, coordonnées, nom, numéro de pièce) et se met à jour quand l'objet change.
+- **Cote 3D** (`COT3D`) : cote alignée entre deux points de hauteurs différentes, texte toujours face à l'écran. `COTALI` le fait aussi tout seul quand les points ne sont pas à la même hauteur.
+- **Guides de construction** (`GUIDE`, `RAPPORTEUR`, `EFFGUIDES`) : droites infinies horizontales, verticales, inclinées, décalées ou bissectrices, sur un calque à part, ignorées par le zoom étendu et l'impression ; on s'y accroche comme à une ligne.
+- **Nouveaux accrochages** : **Extension** (dans le prolongement d'une ligne ou d'un arc survolé), **Parallèle** (parallèle à une ligne survolée), **`DE`** (point de base puis décalage, par exemple `DE` → coin → `@20,10`) et **`M2P`** (milieu entre deux points cliqués).
+- **Cotes associatives** : une cote posée sur des objets les suit quand ils sont déplacés, étirés ou modifiés (ligne, polyligne, cercle, arc). Les copies de cotes restent liées aux copies des objets. `COTASSOC` pour les figer.
+- **Mise en plan** (onglet Sortie › Vues et nomenclature) :
+  - **`VUECOUPE`** vue en coupe hachurée (trait de coupe, flèches et lettres « A-A » sur la vue d'origine) ;
+  - **`VUEDETAIL`** vue de détail agrandie dans un cercle (« DÉTAIL B (2:1) ») ;
+  - **`BULLE`** numéros de pièce et **`NOMENCLATURE`** tableau repère / désignation / quantité / matière, mis à jour avec les vues ;
+  - **`RAPPELTROU`** rappel de perçage lu dans le modèle (« 2× M6 prof. 8 », lamage, fraisure) ;
+  - `MAJVUES` régénère aussi les coupes, les détails et la nomenclature, et les cotes posées sur les vues les suivent.
+- **Blocs et composants** (onglet Insérer › Blocs) : **`BLOC`** regroupe des objets en un bloc réutilisable, **`INSERER`** en place des copies (échelle, rotation), **`MODIFBLOC`** / **`FERMERBLOC`** modifient le bloc et toutes ses copies, `DECOMPOS` redonne des objets séparés. **`MESCOMPOSANTS`** : votre bibliothèque personnelle de blocs, disponible dans tous vos dessins.
+- **Plans de coupe enregistrés** (Outils 3D › menu ▾ de Coupe de section) : **`PLANCOUPE`** crée un plan nommé (X, Y, Z ou parallèle à une face) enregistré dans le dessin et réappliqué à l'ouverture ; **`PLANSCOUPE`** l'active, l'inverse, le renomme ou le supprime ; **`COUPE2D`** pose à plat dans le dessin la section des solides (contours fermés et hachures), pour la coter ou l'exporter en DXF.
+- **Scènes et mode Présentation** (onglet Vue › Scènes) : une vue nommée garde désormais aussi les **calques visibles** et le **plan de coupe actif**. **`PRESENTATION`** enchaîne les scènes en plein écran avec des transitions animées de la caméra (← → ou clic pour avancer, P pour la lecture automatique, Échap pour quitter). **`EXPORTPRESENTATION`** enregistre la visite en **vidéo WebM** ou en **GIF animé**.
+- **Thème clair ou sombre des barres de menu** : bouton soleil / lune dans la barre de titre, ou commande `THEME`.
+
+---
+
 ## 1.1.0 — 14 novembre 2026
 
 Xylform CAD 1.1.0 : saisie plus rapide, nouvelles cotes et un style « dessin technique ».

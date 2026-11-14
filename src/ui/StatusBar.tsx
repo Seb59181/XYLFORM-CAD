@@ -85,7 +85,7 @@ function LayoutTabs() {
   );
 }
 
-const MODES: SnapKind[] = ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN', 'NEA'];
+const MODES: SnapKind[] = ['END', 'MID', 'CEN', 'QUA', 'INT', 'NOD', 'INS', 'PER', 'TAN', 'EXT', 'PAR', 'NEA'];
 const POLAR = [5, 10, 15, 18, 22.5, 30, 45, 90];
 
 function Popup({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {

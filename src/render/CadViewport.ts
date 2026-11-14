@@ -55,6 +55,8 @@ export interface CadViewportOptions {
   projection?: Projection;
 }
 
+type ViewStateLike = { projection: Projection; position: THREE.Vector3Like; target: THREE.Vector3Like; up: THREE.Vector3Like; halfHeight: number };
+
 export class CadViewport {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -628,7 +630,10 @@ export class CadViewport {
 
   /** ZOOM Étendu : cadre toute la géométrie du modèle. */
   zoomExtents(margin = 1.15): void {
-    this.frameBox(new THREE.Box3().setFromObject(this.modelRoot), margin);
+    // les lignes de construction (guides) sont très longues : hors de l'emprise
+    const box = new THREE.Box3();
+    for (const c of this.modelRoot.children) if (!c.userData.noBounds) box.expandByObject(c);
+    this.frameBox(box, margin);
   }
 
   /** Cadre un ensemble de points (zoom objet). */
@@ -669,6 +674,14 @@ export class CadViewport {
       if (this.controls.update()) this.requestRender();
       this.renderNow();
     });
+  }
+
+  get canvas(): HTMLCanvasElement {
+    return this.renderer.domElement;
+  }
+
+  renderFrame(): void {
+    this.renderNow();
   }
 
   private renderNow(): void {
@@ -743,10 +756,55 @@ export class CadViewport {
     return { projection: this.projection, position: v(c.position), target: v(this.controls.target), up: v(c.up), halfHeight };
   }
 
-  setViewState(s: { projection: Projection; position: THREE.Vector3Like; target: THREE.Vector3Like; up: THREE.Vector3Like; halfHeight: number }): void {
+  setViewState(s: ViewStateLike): void {
     if (this.animation !== null) cancelAnimationFrame(this.animation), (this.animation = null);
     // l'espace 2D impose la vue de dessus parallèle
     if (!this.mode2d) this.setProjection(s.projection);
+    this.applyViewState(s);
+  }
+
+  /**
+   * Transition animée vers un cadrage (mode Présentation) : la cible glisse, la direction de
+   * visée tourne, la hauteur visible et le « haut » s'interpolent. Résolue à la fin.
+   */
+  transitionTo(s: ViewStateLike, ms = 1200): Promise<void> {
+    if (this.animation !== null) cancelAnimationFrame(this.animation), (this.animation = null);
+    if (ms <= 0) {
+      this.setViewState(s);
+      return Promise.resolve();
+    }
+    const a = this.getViewState();
+    if (!this.mode2d) this.setProjection(s.projection);
+    const V = (p: THREE.Vector3Like) => new THREE.Vector3(p.x, p.y, p.z);
+    const t0 = V(a.target), t1 = V(s.target);
+    const o0 = V(a.position).sub(t0), o1 = V(s.position).sub(t1);
+    const d0 = o0.length() || 1, d1 = o1.length() || 1;
+    const q = new THREE.Quaternion().setFromUnitVectors(o0.clone().normalize(), o1.clone().normalize());
+    const qi = new THREE.Quaternion();
+    const u0 = V(a.up), u1 = V(s.up);
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const step = () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        qi.identity().slerp(q, e);
+        const target = t0.clone().lerp(t1, e);
+        const off = o0.clone().normalize().applyQuaternion(qi).multiplyScalar(d0 + (d1 - d0) * e);
+        const up = u0.clone().lerp(u1, e);
+        if (up.lengthSq() < 1e-9) up.copy(u1);
+        this.applyViewState({ projection: s.projection, target, position: target.clone().add(off), up: up.normalize(), halfHeight: a.halfHeight + (s.halfHeight - a.halfHeight) * e });
+        this.renderNow();
+        if (t < 1) this.animation = requestAnimationFrame(step);
+        else {
+          this.animation = null;
+          resolve();
+        }
+      };
+      this.animation = requestAnimationFrame(step);
+    });
+  }
+
+  private applyViewState(s: ViewStateLike): void {
     const c = this.camera;
     this.controls.target.set(s.target.x, s.target.y, s.target.z);
     if (this.mode2d) {

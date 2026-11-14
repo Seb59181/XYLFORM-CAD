@@ -294,7 +294,8 @@ const importCmd = cmd('IMPORT', 'IMPORTER', ['IMP'], 'Insère un fichier DXF, DW
 
 /** Objets à exporter : sélection courante sinon tout le visible. */
 function exportSet(app: AppHost, accept: (e: Entity) => boolean): Entity[] {
-  const filter = (e: Entity) => e.type !== 'UNDERLAY' && accept(e); // les fonds de plan restent des références
+  // les fonds de plan restent des références ; les lignes de construction ne sortent pas
+  const filter = (e: Entity) => e.type !== 'UNDERLAY' && !(e.type === 'LINE' && e.guide) && accept(e);
   const pre = app.takePreselection().map((h) => app.doc.get(h)).filter((e): e is Entity => !!e && filter(e));
   return pre.length ? pre : app.visible().filter(filter);
 }
@@ -521,8 +522,9 @@ function svgOf(app: AppHost, es: Entity[]): string {
       const h = e.textHeight ?? app.sysvars.DIMTXT;
       const lab = dimensionLabel(e, h, app.sysvars.DIMASZ, app.sysvars.DIMDEC);
       [...g.lines, ...lab.lines].forEach((l) => (l.forEach(grow), paths.push(`<path d="${pathOf(l)}" stroke="${color}" stroke-width="${lw}" fill="none"/>`)));
-      const t = lab.at;
-      paths.push(`<text x="${fmt(t.x)}" y="${fmt(-t.y)}" font-size="${fmt(h * 1.4)}" font-family="Arial" fill="${color}" text-anchor="middle" transform="rotate(${fmt((-lab.angle * 180) / Math.PI)} ${fmt(t.x)} ${fmt(-t.y)})">${esc(lab.text)}</text>`);
+      for (const f of g.fills) paths.push(`<path d="${pathOf([...f, f[0]!])}" fill="${color}" stroke="none"/>`);
+      for (const { at: t, text, height } of lab.texts)
+        paths.push(`<text x="${fmt(t.x)}" y="${fmt(-t.y)}" font-size="${fmt(height * 1.4)}" font-family="Arial" fill="${color}" text-anchor="middle" transform="rotate(${fmt((-lab.angle * 180) / Math.PI)} ${fmt(t.x)} ${fmt(-t.y)})">${esc(text)}</text>`);
       continue;
     }
     for (const pl of curvePoints(e)) {

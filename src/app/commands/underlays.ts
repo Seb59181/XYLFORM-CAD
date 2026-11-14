@@ -17,7 +17,7 @@ type Underlay = Extract<Entity, { type: 'UNDERLAY' }>;
 export const UNDERLAY_LAYER = 'Fonds de plan';
 const DEFAULT_FADE = 50;
 
-const KIND_LABEL: Record<UnderlayDef['kind'], string> = { dwg: 'DWG', dxf: 'DXF', pdf: 'PDF', image: 'Image' };
+const KIND_LABEL: Record<UnderlayDef['kind'], string> = { dwg: 'DWG', dxf: 'DXF', pdf: 'PDF', image: 'Image', block: 'Bloc' };
 export const underlayKindLabel = (d: UnderlayDef) => KIND_LABEL[d.kind];
 
 let nextId = 1;
