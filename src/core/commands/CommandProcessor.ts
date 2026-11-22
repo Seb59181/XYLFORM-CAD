@@ -34,6 +34,12 @@ export interface CommandProcessorEvents {
   commandEnd?(def: CommandDefinition, status: 'done' | 'cancelled' | 'error'): void;
 }
 
+/** Réponse de `submit` : saisie acceptée, ou refusée avec le message affiché. */
+export interface SubmitResult {
+  accepted: boolean;
+  message?: string;
+}
+
 interface PendingPrompt {
   spec: PromptSpec;
   resolve(result: PromptResult): void;
@@ -88,40 +94,47 @@ export class CommandProcessor {
       .map((k) => ({ name: k.global, insert: k.local, description: k.description, score: 0 }));
   }
 
-  /** Saisie validée (Entrée/Espace). La commande démarrée s'exécute de façon asynchrone. */
-  submit(text: string): void {
+  /**
+   * Saisie validée (Entrée/Espace). La commande démarrée s'exécute de façon asynchrone.
+   * Le résultat indique si la saisie a été acceptée (utilisé par les scripts).
+   */
+  submit(text: string): SubmitResult {
     const top = this.stack[this.stack.length - 1];
+    const refuse = (message: string): SubmitResult => {
+      this.print(message);
+      return { accepted: false, message };
+    };
 
     if (!top) {
       const trimmed = text.trim();
       if (!trimmed) {
         if (this.lastCommand) void this.start(this.lastCommand);
-        return;
+        return { accepted: !!this.lastCommand };
       }
       const resolved = this.registry.resolve(trimmed);
       if (!resolved) {
-        this.print(`Commande inconnue "${trimmed.toUpperCase()}". Appuyez sur F1 pour obtenir de l'aide.`);
+        const r = refuse(`Commande inconnue "${trimmed.toUpperCase()}". Appuyez sur F1 pour obtenir de l'aide.`);
         this.events.idle?.();
-        return;
+        return r;
       }
       this.history.push(trimmed);
       void this.start(resolved.def);
-      return;
+      return { accepted: true };
     }
 
-    if (!top.pending) return; // la commande calcule, saisie ignorée
+    if (!top.pending) return { accepted: false, message: 'La commande calcule : saisie ignorée.' };
 
     // Fin de sélection : Entrée valide le jeu de sélection construit au clic.
     if (top.pending.spec.kind === 'selection' && !text.trim()) {
       const handles = this.selectionSource();
       if (!handles.length && !top.pending.spec.allowNone) {
-        this.print('Aucun objet sélectionné.');
+        const r = refuse('Aucun objet sélectionné.');
         this.emitPrompt(top.pending.spec);
-        return;
+        return r;
       }
       this.print(`${formatPrompt(top.pending.spec)}${handles.length} trouvé(s)`);
       this.deliver(top, handles.length ? { kind: 'selection', value: handles } : { kind: 'none' });
-      return;
+      return { accepted: true };
     }
 
     // Commande transparente au milieu d'un prompt.
@@ -129,7 +142,7 @@ export class CommandProcessor {
       const resolved = this.registry.resolve(text);
       if (resolved?.transparent) {
         void this.start(resolved.def);
-        return;
+        return { accepted: true };
       }
     }
 
@@ -138,7 +151,7 @@ export class CommandProcessor {
     if (mod) {
       this.print(`${formatPrompt(spec)}${text.trim()}`);
       void this.start(this.modifierCommand(mod, top, spec));
-      return;
+      return { accepted: true };
     }
     const dynBase = spec.dynBase ?? spec.basePoint;
     const env: ParseEnv = {
@@ -152,12 +165,49 @@ export class CommandProcessor {
     if (spec.kind === 'point') text = text.replace(/^([^<,]+)[<,]\s*$/, '$1');
     const result = parseInput(text, spec, env);
     if (result.kind === 'error') {
-      this.print(result.message);
+      const r = refuse(result.message);
       this.emitPrompt(top.pending.spec);
-      return;
+      return r;
     }
     this.print(`${formatPrompt(top.pending.spec)}${text.trim()}`);
     this.deliver(top, result);
+    return { accepted: true };
+  }
+
+  /**
+   * Réponse directe au prompt en cours (scripts) : jeu de sélection ou objet désigné par son
+   * handle, sans passer par le viewport. Renvoie false si le prompt n'attend pas ce type.
+   */
+  answer(result: PromptResult): boolean {
+    const top = this.stack[this.stack.length - 1];
+    const spec = top?.pending?.spec;
+    if (!top || !spec) return false;
+    if (result.kind === 'selection' && spec.kind !== 'selection') return false;
+    if (result.kind === 'entity' && spec.kind !== 'entity') return false;
+    if (result.kind === 'selection') this.print(`${formatPrompt(spec)}${result.value.length} trouvé(s)`);
+    this.deliver(top, result);
+    return true;
+  }
+
+  /** Vrai quand aucune commande ne tourne, ou que la commande en cours attend une saisie. */
+  get settled(): boolean {
+    const top = this.stack[this.stack.length - 1];
+    return !top || !!top.pending;
+  }
+
+  private settleWaiters: (() => void)[] = [];
+
+  /** Attend que la commande en cours demande une saisie ou se termine (scripts). */
+  whenSettled(): Promise<void> {
+    if (this.settled) return Promise.resolve();
+    return new Promise((resolve) => this.settleWaiters.push(resolve));
+  }
+
+  private notifySettled(): void {
+    if (!this.settled || !this.settleWaiters.length) return;
+    const ws = this.settleWaiters;
+    this.settleWaiters = [];
+    ws.forEach((w) => w());
   }
 
   /** Point cliqué dans le viewport. */
@@ -281,6 +331,7 @@ export class CommandProcessor {
         this.emitPrompt(parent.pending.spec);
       } else if (!parent) this.events.idle?.();
       finished();
+      this.notifySettled();
     }
   }
 
@@ -324,6 +375,7 @@ export class CommandProcessor {
 
   private emitPrompt(spec: PromptSpec): void {
     this.events.prompt?.(spec, formatPrompt(spec));
+    this.notifySettled();
   }
 
   private print(line: string): void {

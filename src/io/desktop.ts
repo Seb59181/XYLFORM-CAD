@@ -9,6 +9,19 @@ export interface DesktopFile {
   data: Uint8Array;
 }
 
+export interface McpStatus {
+  enabled: boolean;
+  running: boolean;
+  port: number;
+  /** Pont MCP à faire lancer par l'assistant IA. */
+  bridge: string;
+  connection: string;
+  outputDir: string;
+  portable: boolean;
+  /** Bloc « mcpServers » à mettre dans la configuration de l'assistant. */
+  config: { mcpServers: Record<string, { command: string; args: string[]; env?: Record<string, string> }> };
+}
+
 export interface DesktopApi {
   readonly version: string;
   /** Chemin complet d'un fichier choisi ou déposé. */
@@ -23,6 +36,12 @@ export interface DesktopApi {
   checkUpdates?(manual: boolean): Promise<{ ok: boolean; reason?: string; busy?: boolean; downloaded?: string }>;
   /** Messages de la mise à jour (disponible, téléchargée, erreur). */
   onUpdateStatus?(cb: (s: { text: string; kind: 'info' | 'success' | 'error' }) => void): void;
+  /** Connexion IA (serveur MCP local) : état, activation, ajout à un fichier de configuration. */
+  mcpStatus?(): Promise<McpStatus>;
+  mcpEnable?(on: boolean): Promise<McpStatus>;
+  mcpInstall?(): Promise<{ ok: boolean; canceled?: boolean; error?: string; file?: string }>;
+  /** Appels d'outils MCP relayés par le processus principal ; la réponse est renvoyée par le pont. */
+  onMcpRequest?(cb: (req: { id: number; tool: string; args: Record<string, unknown>; outputDir: string }) => Promise<unknown>): void;
   /** Fichiers ouverts par double-clic dans l'Explorateur (au démarrage ou application déjà lancée). */
   onOpenFile(cb: (file: DesktopFile) => void): void;
 }

@@ -3,6 +3,7 @@
  * sélection, les réglages (barre d'état) et l'interface. C'est l'objet reçu par chaque commande
  * dans `ctx.document`. Il ne dépend pas de React : l'interface s'abonne à ses événements.
  */
+import { ScriptRunner, type ScriptReport } from './script/ScriptRunner';
 import { CommandCancelled, CommandProcessor, CommandRegistry, ask, type CommandContext, type CommandDefinition, type PromptSpec } from '../core/commands';
 import type { Vec3 } from '../core/commands/types';
 import { DrawingDocument, featureId, placeHistory, placePrimitive, type DocumentChange, type Entity, type Feature, type Joint, type NewEntity, type PrimitiveDef, type PrimitiveOp } from '../core/document/Document';
@@ -249,6 +250,24 @@ export interface UiApi {
   form(spec: FormSpec): Promise<FormValues | null>;
   /** Boîte à plusieurs boutons : renvoie l'indice choisi (Échap = dernier bouton). */
   choose(message: string, title: string, buttons: string[]): Promise<number>;
+  /** Fenêtre de la connexion IA (serveur MCP). */
+  mcpPanel(): void;
+  /** Fenêtre des scripts de commandes : texte à exécuter, ou null si fermée. */
+  scriptEditor(state: ScriptEditorState): Promise<ScriptEditorResult | null>;
+}
+
+export interface ScriptEditorState {
+  text: string;
+  fileName?: string;
+  /** Compte rendu de la dernière exécution (affiché sous le texte). */
+  report?: ScriptReport;
+  continueOnError?: boolean;
+}
+
+export interface ScriptEditorResult {
+  text: string;
+  fileName?: string;
+  continueOnError: boolean;
 }
 
 export type FormValues = Record<string, string | number | boolean>;
@@ -347,6 +366,8 @@ const fallbackUi: UiApi = {
   contextMenu: () => undefined,
   form: async (spec) => Object.fromEntries(spec.fields.map((f) => [f.key, f.value])),
   choose: async () => 0,
+  scriptEditor: async () => null,
+  mcpPanel: () => undefined,
 };
 
 let tabCounter = 0;
@@ -362,6 +383,8 @@ export class AppHost {
   readonly kernel: KernelClient;
   readonly registry = new CommandRegistry();
   readonly processor: CommandProcessor;
+  /** Scripts de commandes (SCRIPT, serveur MCP). */
+  readonly script: ScriptRunner = new ScriptRunner(this);
   readonly selection: SelectionSet;
   settings: Settings;
   viewport: ViewportApi | null = null;
@@ -421,9 +444,10 @@ export class AppHost {
         }
         this.emit('command');
       },
-      commandEnd: (def) => {
+      commandEnd: (def, status) => {
+        for (const fn of this.endListeners) fn(status, def.name);
         if (!def.transparent) {
-          this.doc.endGroup();
+          if (!this.undoHeld) this.doc.endGroup();
           this.preselection = [];
           if (!KEEP_SELECTION.has(def.name)) this.selection.clear();
         }
@@ -702,6 +726,31 @@ export class AppHost {
 
   execute(text: string): void {
     this.processor.execute(text);
+  }
+
+  private readonly endListeners = new Set<(status: 'done' | 'cancelled' | 'error', name: string) => void>();
+  private undoHeld = false;
+  private heldDoc: DrawingDocument | null = null;
+
+  /** Fin de chaque commande (état final) : utilisé par les scripts. */
+  onCommandEnd(fn: (status: 'done' | 'cancelled' | 'error', name: string) => void): () => void {
+    this.endListeners.add(fn);
+    return () => this.endListeners.delete(fn);
+  }
+
+  /** Scripts : toutes les commandes suivantes forment une seule étape d'annulation. */
+  holdUndoGroup(label: string): void {
+    this.doc.endGroup();
+    this.doc.beginGroup(label);
+    this.heldDoc = this.doc;
+    this.undoHeld = true;
+  }
+
+  releaseUndoGroup(): void {
+    this.undoHeld = false;
+    this.heldDoc?.endGroup();
+    this.heldDoc = null;
+    this.doc.endGroup();
   }
 
   /** Bouton du ruban : lance la commande (annule la commande courante si besoin). */

@@ -6,6 +6,7 @@ import { newsAtStartup, updatesAtStartup } from './app/commands/updates';
 import { desktop, fileFromDesktop } from './io/desktop';
 import { Autosaver, offerRecovery } from './io/autosave';
 import { App } from './ui/App';
+import { handleMcp } from './app/mcp/mcpTools';
 import { AppContext } from './ui/context';
 import './ui/styles.css';
 import { hideSplash, setSplash, splashError } from './ui/splash';
@@ -73,6 +74,12 @@ requestAnimationFrame(() => {
   ).finally(() => (off(), clearTimeout(slow)));
 });
 document.getElementById('splash')?.addEventListener('click', () => hideSplash());
+
+// version bureau : connexion IA (serveur MCP) — les appels d'outils sont exécutés ici
+if (desktop?.onMcpRequest) {
+  const d = desktop;
+  d.onMcpRequest!((req) => handleMcp(app, req, { writeFile: (p, data) => d.writeFile(p, data) }));
+}
 
 // version bureau : dessins ouverts par double-clic dans l'Explorateur Windows
 desktop?.onOpenFile((f) => void openDesktopFile(app, fileFromDesktop(f)));

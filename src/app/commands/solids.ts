@@ -172,6 +172,8 @@ const box = cmd('BOX', 'BOITE', ['BO'], 'Crée un parallélépipède', async (ct
   }
   if (Math.abs(b.x - a.x) < 1e-9 || Math.abs(b.y - a.y) < 1e-9) throw new Error('La base de la boîte est de surface nulle.');
   let h = cube;
+  // autre coin tapé en x,y,z à une autre hauteur : la boîte va d'un coin à l'autre (pas d'invite de hauteur)
+  if (h === null && Math.abs(b.z - a.z) > 1e-9) h = b.z - a.z;
   if (h === null) {
     const r2 = await height(ctx, a, (hh) => boxWire(a, { ...b, z: a.z }, hh), { keywords: [kw('2Point', '2Point', '2P')] });
     if (r2 === '2Point') {

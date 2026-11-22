@@ -5,6 +5,22 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.3.0 — 22 novembre 2026
+
+Xylform CAD 1.3.0 : faites dessiner vos pièces par une IA, avec des scripts de commandes ou directement par la connexion IA (serveur MCP).
+
+- **Scripts de commandes** (`SCRIPT`, onglet Insertion › Scripts et IA) : collez un script ou ouvrez un fichier `.xscr` / `.scr` / `.txt` (glisser-déposer et double-clic dans l'Explorateur aussi). Une commande par ligne, avec ses réponses séparées par des espaces, comme dans la ligne de commande : `plaque = BOITE 0,0,0 100,60,8`, `SOUSTRACTION $plaque $trou`.
+  - **Noms d'objets** : `nom = COMMANDE …` nomme les objets créés, `$nom` les désigne ensuite ; les noms suivent les objets (union, extrusion, soustraction). `DERNIER` et `PRECEDENT` aussi.
+  - **Arêtes et faces sans cliquer** : `$plaque:verticales`, `$plaque:haut`, `$boite:bas`, `$piece:10,0,5` (la plus proche du point) pour les congés, chanfreins, coques, perçages, appuyer/tirer et textes gravés.
+  - **Compte rendu ligne par ligne** : erreur, question en attente et ses options, valeur par défaut prise faute de réponse ; la fenêtre se rouvre sur la ligne fautive, et « Copier les erreurs pour l’IA » prépare le message de correction. Un nouvel essai remplace le résultat partiel du précédent.
+  - Tout le script s'annule en une fois (Ctrl+Z) ; Échap l'interrompt. Dans un script, les coordonnées sont toujours absolues (`@` pour relatif).
+- **Consigne pour l'IA** : bouton « Copier la consigne pour l’IA » dans la fenêtre des scripts. Fiche de référence du format et de l'ordre des réponses de chaque commande, avec exemples, suivie de la liste de toutes les commandes. Chaque exemple de la fiche est exécuté par les tests.
+- **Connexion IA** (`MCP`, onglet Insertion › Scripts et IA, version bureau) : serveur MCP local (protocole ouvert Model Context Protocol). Un assistant IA compatible MCP exécute des scripts dans le dessin ouvert, lit les dimensions et volumes des pièces, regarde une capture de la vue, exporte en STL, 3MF, STEP, DXF, SVG ou .xcad, et annule. Le bouton « Ajouter à un fichier de configuration… » déclare le serveur chez l'assistant ; Xylform CAD est lancé automatiquement s'il est fermé. Écoute sur 127.0.0.1 seulement, avec un jeton secret.
+- **`COULEUR`** : couleur propre des objets (rouge, bleu… `#RRGGBB`, `r,g,b` ou DuCalque), reprise dans l'export 3MF. **`NOMOBJET`** : nom d'un solide (Navigateur, nomenclature, objets du 3MF).
+- `BOITE` : un coin opposé tapé en `x,y,z` à une autre hauteur donne directement la hauteur de la boîte.
+
+---
+
 ## 1.2.0 — 14 novembre 2026
 
 Xylform CAD 1.2.0 : cotation et mise en plan complètes, construction plus rapide, blocs, plans de coupe et mode Présentation.

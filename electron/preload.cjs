@@ -12,6 +12,20 @@ contextBridge.exposeInMainWorld('sebcadDesktop', {
   onUpdateStatus: (cb) => {
     ipcRenderer.on('update-status', (_e, s) => cb(s));
   },
+  mcpStatus: () => ipcRenderer.invoke('mcp-status'),
+  mcpEnable: (on) => ipcRenderer.invoke('mcp-enable', !!on),
+  mcpInstall: () => ipcRenderer.invoke('mcp-install'),
+  onMcpRequest: (cb) => {
+    ipcRenderer.on('mcp-request', async (_e, req) => {
+      let result;
+      try {
+        result = await cb(req);
+      } catch (e) {
+        result = { content: [{ type: 'text', text: `Erreur : ${e && e.message}` }], isError: true };
+      }
+      ipcRenderer.send('mcp-response', req.id, result);
+    });
+  },
   onOpenFile: (cb) => {
     ipcRenderer.on('open-file', (_e, file) => cb(file));
     ipcRenderer.send('renderer-ready');

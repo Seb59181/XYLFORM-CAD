@@ -194,6 +194,13 @@ const TABS: Tab[] = [
         ],
       },
       {
+        title: 'Scripts et IA',
+        large: [
+          { label: 'Script', icon: 'script', cmd: 'SCRIPT', tip: 'Exécute un script de commandes : collez un script écrit par une IA (bouton « Copier la consigne pour l’IA ») ou ouvrez un fichier .xscr' },
+          { label: 'Connexion IA', icon: 'ai', cmd: 'MCP', tip: 'Serveur MCP local : un assistant IA compatible MCP dessine directement dans Xylform CAD (version bureau)' },
+        ],
+      },
+      {
         title: 'Blocs',
         large: [
           { label: 'Créer un bloc', icon: 'block', cmd: 'BLOC', tip: 'Regroupe des objets 2D sous un nom ; un nom existant redéfinit le bloc et toutes ses copies' },

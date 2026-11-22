@@ -22,6 +22,7 @@ import { addRecent, removeRecent, type RecentFile } from '../../io/recent';
 import type { SolidResult } from '../../kernel/protocol';
 import type { AppHost, DocTab } from '../AppHost';
 import { clipboardShapeIds } from './utility';
+import { isScriptFile, openScriptFile } from './script';
 import { analyzeMeshes, describeChecks, drawingUnit, findOverlaps, overlapGroups, showAnalysis } from '../printCheck';
 import { cmd, fmt, getDistance, getKeyword, getNumber, isBody, isSolid, kw, selectObjects } from './helpers';
 
@@ -171,6 +172,7 @@ async function openFile(ctx: CommandContext, app: AppHost, file: File): Promise<
  * dessin, un PDF ou une image est attaché comme fond de plan.
  */
 export async function openDroppedFile(app: AppHost, file: File): Promise<void> {
+  if (isScriptFile(file.name)) return openScriptFile(app, file);
   const project = isProject(file.name);
   const kind = underlayKind(file.name);
   if (kind === 'pdf' || kind === 'image') {
@@ -186,6 +188,7 @@ export async function openDroppedFile(app: AppHost, file: File): Promise<void> {
 
 /** Ouvre un dessin reçu de l'Explorateur Windows (version bureau), dans un nouvel onglet. */
 export async function openDesktopFile(app: AppHost, file: File): Promise<void> {
+  if (isScriptFile(file.name)) return openScriptFile(app, file);
   const kind = underlayKind(file.name);
   if (kind === 'pdf' || kind === 'image') return openDroppedFile(app, file);
   if (!isProject(file.name) && !kind && !['step', 'stp', 'stl', '3mf'].includes(extension(file.name))) return;
