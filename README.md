@@ -126,6 +126,35 @@ glisser pour tourner, maison = vue d'accueil). Échap annule la commande puis vi
 Entrée, Espace **ou un clic droit court** valident (et répètent la dernière commande sur une invite vide) ;
 un clic droit **maintenu une demi-seconde** ouvre le menu contextuel (`CLICDROIT` pour changer la durée).
 
+### Faire dessiner une pièce par une IA (1.3)
+
+**Avec n'importe quelle IA (scripts)** : onglet **Insertion › Script** (commande `SCRIPT`).
+1. Cliquez **Copier la consigne pour l’IA** et collez-la au début de la conversation avec l'IA.
+2. Décrivez la pièce (« un support d'étagère en équerre de 60 × 40 mm, épaisseur 5, deux trous M4 »).
+3. Collez le script qu'elle répond dans la fenêtre, puis **Exécuter**. En cas d'erreur, la fenêtre
+   se rouvre sur la ligne fautive : **Copier les erreurs pour l’IA**, collez-les à l'IA, recollez sa correction.
+
+Exemple de script (fichier `.xscr`, une commande par ligne, comme dans la ligne de commande) :
+
+```
+plaque = BOITE 0,0,0 60,40,5          ; nom = commande : nomme l'objet créé
+RACCORDBORD R 4 $plaque:verticales    ; $nom désigne l'objet, :verticales ses arêtes
+t1 = CYLINDRE 35,12,-1 2.2 7
+t2 = CYLINDRE 35,28,-1 2.2 7
+SOUSTRACTION $plaque $t1,$t2
+EXPORTSTL
+```
+
+La fiche complète du format est dans [`docs/scripts-ia.md`](docs/scripts-ia.md).
+
+**Directement, par la connexion IA (MCP)** — version bureau : onglet **Insertion › Connexion IA**
+(commande `MCP`), **Activer**, puis **Ajouter à un fichier de configuration…** et choisissez le fichier
+de configuration MCP de votre assistant IA (bloc `mcpServers`). Après redémarrage de l'assistant, il
+peut exécuter des scripts dans le dessin ouvert, lire les dimensions, regarder la vue et exporter en
+STL ou 3MF (dossier `Documents\Xylform CAD` par défaut). Le serveur n'écoute que sur la machine
+(127.0.0.1) avec un jeton secret ; la version installée sert elle-même d'interpréteur, la version
+portable demande Node.js.
+
 ### Espaces de travail 2D et 3D
 
 Le sélecteur **2D | 3D** de la barre de titre (ou `ESPACETRAVAIL`) change d'espace :
@@ -385,7 +414,10 @@ npm.cmd run typecheck  # TypeScript strict
 | `src/render` | Viewport Three.js, grille adaptative, gizmo, synchronisation dessin → scène |
 | `src/app` | Hôte de l'application, interaction souris, toutes les commandes |
 | `src/io` | DXF, DWG, PDF, `.xcad`, STL, 3MF, fonds de plan, accès aux fichiers |
-| `electron` | Version bureau : fenêtre, protocole `app://`, boîtes de dialogue natives |
+| `src/app/script` | Scripts de commandes : lecture, exécution, noms d'objets, compte rendu, consigne pour l'IA |
+| `src/app/mcp` | Outils de la connexion IA (MCP), exécutés dans l'interface |
+| `electron` | Version bureau : fenêtre, protocole `app://`, boîtes de dialogue natives, serveur MCP local (`mcp.cjs`) et son pont stdio (`mcp-bridge.cjs`) |
+| `docs` | Consigne des scripts pour une IA (`scripts-ia.md`) |
 | `build` | Icône de l'application ; configuration de l'exe : `electron-builder.config.cjs` |
 | `src/ui` | Interface React : ruban, ligne de commande, palettes, boîtes de dialogue |
 

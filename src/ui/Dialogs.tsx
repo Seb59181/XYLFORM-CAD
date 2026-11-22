@@ -3,7 +3,9 @@
  * menu contextuel et notifications. `UiRoot` implémente `UiApi` et l'installe sur l'hôte.
  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { FormSpec, FormValues, MenuItem, MeshExportSettings, UiApi } from '../app/AppHost';
+import type { FormSpec, FormValues, MenuItem, MeshExportSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import { ScriptDialog } from './ScriptDialog';
+import { McpDialog } from './McpDialog';
 import { Icon } from './icons';
 import { CustomizeDialog } from './Customize';
 import { useApp } from './context';
@@ -22,7 +24,9 @@ type Dialog =
   | { id: number; kind: 'news'; notes: NewsNotes[]; previous: string | null; resolve: () => void }
   | { id: number; kind: 'customize' }
   | { id: number; kind: 'form'; spec: FormSpec; resolve: (v: FormValues | null) => void }
-  | { id: number; kind: 'choose'; title: string; message: string; buttons: string[]; resolve: (v: number) => void };
+  | { id: number; kind: 'choose'; title: string; message: string; buttons: string[]; resolve: (v: number) => void }
+  | { id: number; kind: 'mcp' }
+  | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void };
 
 interface Toast {
   id: number;
@@ -73,6 +77,8 @@ export function UiRoot() {
       contextMenu: (x, y, items) => setMenu({ x, y, items }),
       form: (spec) => new Promise((resolve) => push({ id: nextId++, kind: 'form', spec, resolve })),
       choose: (message, title, buttons) => new Promise((resolve) => push({ id: nextId++, kind: 'choose', title, message, buttons, resolve })),
+      mcpPanel: () => push({ id: nextId++, kind: 'mcp' }),
+      scriptEditor: (state) => new Promise((resolve) => push({ id: nextId++, kind: 'script', state, resolve })),
     };
     const previous = app.ui;
     app.ui = api;
@@ -132,6 +138,17 @@ export function UiRoot() {
             />
           )}
           {top.kind === 'help' && <HelpDialog key={top.id} onClose={() => close(top.id)} />}
+          {top.kind === 'mcp' && <McpDialog key={top.id} onClose={() => close(top.id)} />}
+          {top.kind === 'script' && (
+            <ScriptDialog
+              key={top.id}
+              state={top.state}
+              onDone={(v) => {
+                close(top.id);
+                top.resolve(v);
+              }}
+            />
+          )}
           {top.kind === 'news' && (
             <NewsDialog
               key={top.id}
@@ -287,7 +304,7 @@ function NewsDialog({ d, onClose }: { d: Extract<Dialog, { kind: 'news' }>; onCl
   );
 }
 
-function Frame({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean }) {
+export function Frame({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean }) {
   return (
     <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
       <div className="modal-head">
@@ -303,7 +320,7 @@ function Frame({ title, onClose, children, footer, wide }: { title: string; onCl
 }
 
 /** Échap / Entrée pour la boîte de dialogue active. */
-function useKeys(onEnter: (() => void) | null, onEscape: () => void) {
+export function useKeys(onEnter: (() => void) | null, onEscape: () => void) {
   const ref = useRef({ onEnter, onEscape });
   ref.current = { onEnter, onEscape };
   useEffect(() => {

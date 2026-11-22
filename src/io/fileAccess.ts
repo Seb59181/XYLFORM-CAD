@@ -32,10 +32,26 @@ export interface SaveOptions {
 const toBlob = (data: Uint8Array | string | Blob, mime: string) =>
   data instanceof Blob ? data : new Blob([typeof data === 'string' ? data : (data as Uint8Array<ArrayBuffer>)], { type: mime });
 
+/**
+ * Redirection des enregistrements (scripts et serveur MCP) : le fichier est remis à cette fonction
+ * au lieu d'ouvrir la boîte « Enregistrer sous ». Elle renvoie le fichier écrit (ou null).
+ */
+export type SaveRedirect = (bytes: Uint8Array, opts: SaveOptions) => Promise<SaveTarget | null>;
+let redirect: SaveRedirect | null = null;
+
+export function setSaveRedirect(fn: SaveRedirect | null): SaveRedirect | null {
+  const previous = redirect;
+  redirect = fn;
+  return previous;
+}
+
+const toBytes = async (data: Uint8Array | string | Blob) => (typeof data === 'string' ? new TextEncoder().encode(data) : data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : data);
+
 /** Écrit le fichier ; renvoie null si l'utilisateur a annulé. */
 export async function saveFile(data: Uint8Array | string | Blob, opts: SaveOptions): Promise<SaveTarget | null> {
+  if (redirect) return redirect(await toBytes(data), opts);
   if (desktop) {
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : data;
+    const bytes = await toBytes(data);
     const path = opts.handle && 'path' in opts.handle ? opts.handle.path : await desktop.saveDialog({ name: opts.name, description: opts.description, extensions: opts.extensions });
     if (!path) return null;
     await desktop.writeFile(path, bytes);

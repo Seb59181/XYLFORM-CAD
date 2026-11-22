@@ -571,6 +571,24 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M18 28l2-6 8-8 4 4-8 8z" fill={Y} stroke="none" />
     </>
   ),
+  script: (
+    <>
+      <path d="M7 3h13l5 5v21H7z" fill="#2b323c" />
+      <path d="M20 3v5h5" />
+      <path d="M11 13l3 2.5-3 2.5" stroke={A} strokeWidth={2} />
+      <path d="M16 18h5M11 23h10" />
+    </>
+  ),
+  ai: (
+    <>
+      <rect x="6" y="9" width="20" height="16" rx="4" fill="#2b323c" />
+      <path d="M16 9V5" />
+      <circle cx="16" cy="4" r="1.5" fill="currentColor" />
+      <circle cx="12" cy="16" r="2" fill={A} stroke="none" />
+      <circle cx="20" cy="16" r="2" fill={A} stroke="none" />
+      <path d="M12 21h8M3 15v5M29 15v5" />
+    </>
+  ),
   import: (
     <>
       <path d="M12 3h9l6 6v20H12z" fill="#2b323c" />

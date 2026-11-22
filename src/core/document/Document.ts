@@ -528,6 +528,11 @@ export class DrawingDocument {
     return this.undoStack.length > 0;
   }
 
+  /** Libellé de l'étape que ferait Annuler (null si rien). */
+  get undoLabel(): string | null {
+    return this.undoStack[this.undoStack.length - 1]?.label ?? null;
+  }
+
   get canRedo(): boolean {
     return this.redoStack.length > 0;
   }

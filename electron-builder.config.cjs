@@ -46,6 +46,7 @@ module.exports = {
   portable: { artifactName: 'Xylform-CAD-${version}-portable.${ext}' },
   fileAssociations: [
     { ext: 'xcad', name: 'XylformCAD.Dessin', description: 'Dessin Xylform CAD', icon: 'build/icon.ico', role: 'Editor' },
+    { ext: 'xscr', name: 'XylformCAD.Script', description: 'Script de commandes Xylform CAD', icon: 'build/icon.ico', role: 'Editor' },
     { ext: 'sebcad', name: 'XylformCAD.DessinSebCad', description: 'Dessin SebCad (ancien format)', icon: 'build/icon.ico', role: 'Editor' },
   ],
   linux: { target: ['dir'], icon: 'build/icon.png', category: 'Graphics' },

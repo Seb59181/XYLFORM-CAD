@@ -13,12 +13,13 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
 const updater = require('./updater.cjs');
+const mcp = require('./mcp.cjs');
 
 const NAME = 'Xylform CAD';
 
 const DIST = path.join(__dirname, '..', 'dist');
 const DEV_URL = process.env.XYLFORM_DEV_URL || process.env.SEBCAD_DEV_URL; // ex. http://localhost:5173 (npm run desktop:dev)
-const OPENABLE = /\.(xcad|sebcad|ncad|dwg|dxf|step|stp|stl|3mf|pdf|png|jpe?g)$/i;
+const OPENABLE = /\.(xcad|sebcad|ncad|dwg|dxf|step|stp|stl|3mf|pdf|png|jpe?g|xscr|scr)$/i;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -163,6 +164,7 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.handle('read-file', async (_e, p) => new Uint8Array(await fs.readFile(p)));
     ipcMain.handle('write-file', async (_e, p, data) => {
+      await fs.mkdir(path.dirname(p), { recursive: true });
       await fs.writeFile(p, Buffer.from(data));
     });
     ipcMain.handle('save-dialog', async (_e, opts) => {
@@ -181,6 +183,7 @@ if (!app.requestSingleInstanceLock()) {
       list.forEach(sendFile);
     });
 
+    mcp.attach(() => win);
     queue(filesFromArgs(process.argv));
     createWindow();
   });
