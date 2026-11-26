@@ -8,7 +8,7 @@ interface **React**, lecture **DWG** (LibreDWG), lecture/écriture **DXF** et **
 plan** DWG/DXF/PDF/images, export **STL** et **3MF** avec contrôle d'imprimabilité, visserie à
 filetage réel, charnières imprimables, raccords PVC…
 
-Licence **MIT** (voir [LICENSE](LICENSE)). Nouveautés : [CHANGELOG.md](CHANGELOG.md).
+Site du logiciel : <https://seb59181.github.io/XYLFORM-CAD/>. Licence **MIT** (voir [LICENSE](LICENSE)). Nouveautés : [CHANGELOG.md](CHANGELOG.md).
 
 ## Télécharger (Windows)
 
