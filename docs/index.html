@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xylform CAD — logiciel libre de CAO 2D/3D pour l'impression 3D</title>
+<meta name="description" content="Xylform CAD, by Seb. : logiciel libre et gratuit de CAO 2D/3D pour Windows, pensé pour l'impression 3D. Noyau B-rep OpenCascade, export STL et 3MF contrôlé, lecture DWG/DXF/STEP.">
+<meta property="og:title" content="Xylform CAD — Design. Create. Print.">
+<meta property="og:description" content="Logiciel libre de CAO 2D/3D pour l'impression 3D, gratuit, pour Windows.">
+<meta property="og:image" content="https://seb59181.github.io/XYLFORM-CAD/images/logo-xylform.jpg">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="images/favicon.png">
+<style>
+  :root {
+    --bg: #0b0f16;
+    --bg-2: #111826;
+    --card: #151d2b;
+    --line: #243045;
+    --text: #e6ebf2;
+    --muted: #9aa7ba;
+    --accent: #1e9bff;
+    --accent-2: #46b4ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  a { color: var(--accent-2); }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* En-tête */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(11, 15, 22, .85); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  header.top .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; }
+  .brand img { width: 28px; height: 28px; }
+  .brand small { color: var(--accent-2); font-weight: 400; font-style: italic; }
+  nav { margin-left: auto; display: flex; gap: 22px; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 15px; }
+  nav a:hover { color: var(--text); }
+
+  /* Accueil */
+  .hero {
+    padding: 56px 0 40px; text-align: center;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(30, 155, 255, .18), transparent 70%);
+  }
+  .hero .logo { width: min(600px, 100%); margin: 0 auto 26px; border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0, 0, 0, .55); }
+  .hero h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.25; margin: 0 0 12px; }
+  .hero p.lead { color: var(--muted); font-size: 18px; max-width: 720px; margin: 0 auto 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 13px 22px; border-radius: 10px; font-weight: 600; text-decoration: none;
+    border: 1px solid var(--line); color: var(--text); background: var(--card);
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 17px; }
+  .btn.primary:hover { background: #148be8; }
+  .btn svg { width: 20px; height: 20px; flex: none; }
+  .dl-info { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+  section { padding: 56px 0; }
+  section.alt { background: var(--bg-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  h2 { font-size: 28px; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 30px; }
+
+  /* Fonctions */
+  .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+  .feature { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .feature h3 { margin: 0 0 6px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+  .feature .ic { font-size: 22px; margin-bottom: 8px; }
+
+  /* Captures */
+  .shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .shots figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .shots img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; cursor: zoom-in; }
+  .shots figcaption { padding: 12px 16px; color: var(--muted); font-size: 14px; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0, 0, 0, .9); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 20; cursor: zoom-out; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-height: 100%; border-radius: 8px; }
+
+  /* Quoi de neuf */
+  .news { display: grid; gap: 18px; }
+  .release { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; }
+  .release h3 { margin: 0 0 4px; font-size: 20px; }
+  .release .date { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .release ul { margin: 8px 0 0; padding-left: 20px; }
+  .release li { margin: 4px 0; }
+  .release li ul { margin-top: 4px; }
+  .release code { background: #0d1420; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; font-size: 14px; }
+  .more { margin-top: 18px; }
+
+  /* Téléchargement */
+  .dl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .dl-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .dl-card h3 { margin: 0; }
+  .dl-card p { margin: 0; color: var(--muted); font-size: 15px; flex: 1; }
+  .note { margin-top: 22px; padding: 14px 18px; border-left: 3px solid var(--accent); background: var(--card); border-radius: 6px; color: var(--muted); font-size: 15px; }
+
+  footer { padding: 30px 0 40px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+
+  @media (max-width: 720px) {
+    nav { display: none; }
+    .shots { grid-template-columns: 1fr; }
+    section { padding: 40px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="images/favicon.png" alt="">Xylform CAD <small>by Seb.</small></a>
+    <nav>
+      <a href="#fonctions">Fonctions</a>
+      <a href="#captures">Captures</a>
+      <a href="#nouveautes">Quoi de neuf</a>
+      <a href="#telecharger">Télécharger</a>
+      <a href="https://github.com/Seb59181/XYLFORM-CAD">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <img class="logo" src="images/logo-xylform.jpg" alt="Xylform CAD — Design. Create. Print." width="1000" height="563">
+    <h1>La CAO 2D/3D libre et gratuite pour l'impression 3D</h1>
+    <p class="lead">Dessinez en 2D, modélisez des pièces en volume et exportez-les en STL ou 3MF prêtes à imprimer.
+      Un vrai noyau géométrique, une ligne de commande, un ruban et des outils pensés pour les makers.</p>
+    <div class="cta">
+      <a class="btn primary js-setup" href="https://github.com/Seb59181/XYLFORM-CAD/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span>Télécharger pour Windows</span>
+      </a>
+      <a class="btn" href="https://github.com/Seb59181/XYLFORM-CAD#readme">Lire la documentation</a>
+    </div>
+    <div class="dl-info"><span class="js-version">Dernière version sur GitHub</span> · Windows 10/11 64 bits · licence MIT</div>
+  </div>
+</div>
+
+<section id="fonctions">
+  <div class="wrap">
+    <h2>Fonctions</h2>
+    <p class="sub">Tout ce qu'il faut pour passer d'une idée à une pièce imprimée.</p>
+    <div class="features">
+      <div class="feature"><div class="ic">✏️</div><h3>Dessin 2D précis</h3><p>Lignes, polylignes, arcs, splines, hachures, accrochages aux objets, saisie dynamique au curseur, contraintes et cotes pilotées.</p></div>
+      <div class="feature"><div class="ic">🧊</div><h3>Modélisation 3D volumique</h3><p>Noyau B-rep OpenCascade : extrusion, révolution, balayage, lissage, booléens exacts, congés, chanfreins, coques, perçages.</p></div>
+      <div class="feature"><div class="ic">🖨️</div><h3>Prêt pour l'impression 3D</h3><p>Export STL et 3MF étanches, contrôle d'imprimabilité avant export, compensation des trous, jeu de filetage réglable.</p></div>
+      <div class="feature"><div class="ic">🔩</div><h3>Bibliothèque de pièces</h3><p>Vis et écrous à filetage réel, taraudages, charnières imprimables, raccords PVC, plaquette de calibration.</p></div>
+      <div class="feature"><div class="ic">📐</div><h3>Cotation et mise en plan</h3><p>Styles de cote, tolérances, vues en coupe et de détail, nomenclature, export PDF et SVG.</p></div>
+      <div class="feature"><div class="ic">📂</div><h3>Échange de fichiers</h3><p>Lecture DWG, lecture et écriture DXF et STEP, import STL/3MF, fonds de plan DWG, DXF, PDF et images.</p></div>
+      <div class="feature"><div class="ic">🤖</div><h3>Pièces dessinées par une IA</h3><p>Scripts de commandes faciles à écrire par une IA, et connexion directe d'un assistant compatible MCP.</p></div>
+      <div class="feature"><div class="ic">🔄</div><h3>Mise à jour automatique</h3><p>La version installée se met à jour toute seule et présente les nouveautés après chaque mise à jour.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="captures" class="alt">
+  <div class="wrap">
+    <h2>Captures d'écran</h2>
+    <p class="sub">Interface sombre, ruban par onglets, ligne de commande et palettes ancrables.</p>
+    <div class="shots">
+      <figure><img src="images/modelisation-3d.jpg" alt="Modélisation 3D d'une pièce percée en style Technique" loading="lazy" width="1600" height="960"><figcaption>Modélisation 3D, style d'affichage Technique</figcaption></figure>
+      <figure><img src="images/dessin-2d-cotes.jpg" alt="Dessin 2D coté : cotes linéaires, angulaires et longueur d'arc" loading="lazy" width="1600" height="960"><figcaption>Dessin 2D et cotation</figcaption></figure>
+      <figure><img src="images/charnieres.jpg" alt="Six modèles de charnières imprimables" loading="lazy" width="1140" height="900"><figcaption>Charnières imprimables de la bibliothèque de pièces</figcaption></figure>
+      <figure><img src="images/scripts-ia.jpg" alt="Fenêtre des scripts de commandes avec compte rendu des erreurs" loading="lazy" width="1440" height="900"><figcaption>Scripts de commandes pour faire dessiner une pièce par une IA</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="nouveautes">
+  <div class="wrap">
+    <h2>Quoi de neuf</h2>
+    <p class="sub">Les dernières versions, lues directement dans le journal des versions du projet.</p>
+    <div class="news js-news">
+      <article class="release">
+        <h3>Xylform CAD 1.3.0</h3>
+        <div class="date">22 novembre 2026</div>
+        <p>Faites dessiner vos pièces par une IA, avec des scripts de commandes ou directement par la connexion IA (serveur MCP).</p>
+      </article>
+    </div>
+    <p class="more"><a href="https://github.com/Seb59181/XYLFORM-CAD/blob/main/CHANGELOG.md">Toutes les versions dans le journal complet →</a></p>
+  </div>
+</section>
+
+<section id="telecharger" class="alt">
+  <div class="wrap">
+    <h2>Télécharger</h2>
+    <p class="sub">Gratuit, sans compte, sans publicité. <span class="js-version-2"></span></p>
+    <div class="dl-grid">
+      <div class="dl-card">
+        <h3>Installateur (conseillé)</h3>
+        <p>Raccourcis Bureau et menu Démarrer, ouverture des dessins .xcad par double-clic, mise à jour automatique.</p>
+        <a class="btn primary js-setup" href="https://github.com/Seb59181/XYLFORM-CAD/releases/latest">Télécharger l'installateur</a>
+      </div>
+      <div class="dl-card">
+        <h3>Version portable</h3>
+        <p>Se lance sans installation, depuis une clé USB par exemple. Elle signale les nouvelles versions.</p>
+        <a class="btn js-portable" href="https://github.com/Seb59181/XYLFORM-CAD/releases/latest">Télécharger la version portable</a>
+      </div>
+      <div class="dl-card">
+        <h3>Code source</h3>
+        <p>Logiciel libre sous licence MIT. Il se lance aussi dans le navigateur depuis le code source.</p>
+        <a class="btn" href="https://github.com/Seb59181/XYLFORM-CAD">Voir le dépôt GitHub</a>
+      </div>
+    </div>
+    <div class="note">Tant que l'exe n'est pas signé numériquement, Windows peut afficher « Windows a protégé votre ordinateur » :
+      cliquez sur <strong>Informations complémentaires</strong> puis <strong>Exécuter quand même</strong>.</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Xylform CAD, by Seb. · Logiciel libre sous licence <a href="https://github.com/Seb59181/XYLFORM-CAD/blob/main/LICENSE">MIT</a></span>
+    <span><a href="https://github.com/Seb59181/XYLFORM-CAD#readme">Documentation</a> · <a href="https://github.com/Seb59181/XYLFORM-CAD/issues">Signaler un problème</a> · <a href="https://buymeacoffee.com/XylformCAD">Soutenir le projet</a></span>
+  </div>
+</footer>
+
+<div class="lightbox" aria-hidden="true"><img alt=""></div>
+
+<script>
+(function () {
+  var REPO = 'Seb59181/XYLFORM-CAD';
+
+  // Liens directs vers les fichiers de la dernière Release (repli : page Releases).
+  fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (rel) {
+      var assets = rel.assets || [];
+      var find = function (re) { return assets.filter(function (a) { return re.test(a.name); })[0]; };
+      var setup = find(/Setup.*\.exe$/i), portable = find(/portable.*\.exe$/i);
+      var mb = function (a) { return Math.round(a.size / 1048576) + ' Mo'; };
+      document.querySelectorAll('.js-setup').forEach(function (a) { if (setup) a.href = setup.browser_download_url; });
+      document.querySelectorAll('.js-portable').forEach(function (a) { if (portable) a.href = portable.browser_download_url; });
+      var v = (rel.tag_name || '').replace(/^v/, '');
+      if (v) {
+        document.querySelector('.js-version').textContent = 'Version ' + v + (setup ? ' · ' + mb(setup) : '');
+        document.querySelector('.js-version-2').textContent = 'Dernière version : ' + v + '.';
+      }
+    })
+    .catch(function () {});
+
+  // « Quoi de neuf » : les deux dernières sections de CHANGELOG.md.
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function inline(s) {
+    return esc(s)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2">$1</a>')
+      .replace(/&lt;(https?:[^&\s]+)&gt;/g, '<a href="$1">$1</a>');
+  }
+  function render(body) {
+    var html = '', depth = -1, para = [];
+    var flush = function () { if (para.length) { html += '<p>' + inline(para.join(' ')) + '</p>'; para = []; } };
+    body.split('\n').forEach(function (line) {
+      var m = line.match(/^(\s*)- (.*)$/);
+      if (m) {
+        flush();
+        var d = Math.floor(m[1].length / 2);
+        if (d > depth) { while (depth < d) { html += '<ul>'; depth++; } }
+        else { html += '</li>'; while (depth > d) { html += '</ul></li>'; depth--; } }
+        html += '<li>' + inline(m[2]);
+      } else if (/^\s+\S/.test(line) && depth >= 0) {
+        html += ' ' + inline(line.trim());
+      } else if (line.trim() === '' || line.trim() === '---') {
+        if (depth >= 0) { html += '</li>'; while (depth > 0) { html += '</ul></li>'; depth--; } html += '</ul>'; depth = -1; }
+        flush();
+      } else {
+        para.push(line.trim());
+      }
+    });
+    if (depth >= 0) { html += '</li>'; while (depth > 0) { html += '</ul></li>'; depth--; } html += '</ul>'; }
+    flush();
+    return html;
+  }
+  fetch('https://raw.githubusercontent.com/' + REPO + '/main/CHANGELOG.md')
+    .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+    .then(function (md) {
+      var parts = md.split(/^## /m).slice(1, 3);
+      if (!parts.length) return;
+      document.querySelector('.js-news').innerHTML = parts.map(function (p) {
+        var nl = p.indexOf('\n'), head = p.slice(0, nl).split(/\s+—\s+/);
+        return '<article class="release"><h3>Xylform CAD ' + esc(head[0]) + '</h3>' +
+          (head[1] ? '<div class="date">' + esc(head[1]) + '</div>' : '') + render(p.slice(nl + 1)) + '</article>';
+      }).join('');
+    })
+    .catch(function () {});
+
+  // Agrandir les captures.
+  var box = document.querySelector('.lightbox'), big = box.querySelector('img');
+  document.querySelectorAll('.shots img').forEach(function (img) {
+    img.addEventListener('click', function () { big.src = img.src; big.alt = img.alt; box.classList.add('open'); });
+  });
+  box.addEventListener('click', function () { box.classList.remove('open'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') box.classList.remove('open'); });
+})();
+</script>
+</body>
+</html>
