@@ -18,14 +18,30 @@ import { Ribbon } from './Ribbon';
 import { DocTabs, StartPage, closeFromUi, switchTo } from './DocTabs';
 import { comboOf, comboProblem } from './shortcuts';
 import { StatusBar } from './StatusBar';
+import { desktop } from '../io/desktop';
+import { confirmQuit } from '../app/commands/files';
 import { Viewport } from './Viewport';
+
+/** La fermeture de la fenêtre (version bureau) n'est branchée qu'une fois. */
+let closeHooked = false;
+let quitting = false;
 
 export function App() {
   const app = useApp();
   const [holder] = useState(() => ({ current: null, listeners: new Set<() => void>() }));
   useGlobalKeys(app, holder);
   useEffect(() => {
+    // version bureau : Enregistrer / Ne pas enregistrer / Annuler pour chaque dessin modifié
+    if (!closeHooked) {
+      closeHooked = true;
+      desktop?.onCloseRequest?.(async () => {
+        const ok = await confirmQuit(app);
+        quitting = ok;
+        return ok;
+      });
+    }
     const h = (e: BeforeUnloadEvent) => {
+      if (quitting) return;
       if (app.docs.some((t) => t.doc.dirty && t.doc.size > 0)) {
         e.preventDefault();
         e.returnValue = '';

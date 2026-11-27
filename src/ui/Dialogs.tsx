@@ -6,6 +6,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import type { FormSpec, FormValues, MenuItem, MeshExportSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
 import { ScriptDialog } from './ScriptDialog';
 import { McpDialog } from './McpDialog';
+import { RenderDialog, type RenderPanelResult } from './RenderDialog';
 import { Icon } from './icons';
 import { CustomizeDialog } from './Customize';
 import { useApp } from './context';
@@ -26,6 +27,7 @@ type Dialog =
   | { id: number; kind: 'form'; spec: FormSpec; resolve: (v: FormValues | null) => void }
   | { id: number; kind: 'choose'; title: string; message: string; buttons: string[]; resolve: (v: number) => void }
   | { id: number; kind: 'mcp' }
+  | { id: number; kind: 'render'; initial: RenderPanelResult; resolve: (v: RenderPanelResult | null) => void }
   | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void };
 
 interface Toast {
@@ -78,6 +80,7 @@ export function UiRoot() {
       form: (spec) => new Promise((resolve) => push({ id: nextId++, kind: 'form', spec, resolve })),
       choose: (message, title, buttons) => new Promise((resolve) => push({ id: nextId++, kind: 'choose', title, message, buttons, resolve })),
       mcpPanel: () => push({ id: nextId++, kind: 'mcp' }),
+      renderPanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'render', initial, resolve })),
       scriptEditor: (state) => new Promise((resolve) => push({ id: nextId++, kind: 'script', state, resolve })),
     };
     const previous = app.ui;
@@ -139,6 +142,16 @@ export function UiRoot() {
           )}
           {top.kind === 'help' && <HelpDialog key={top.id} onClose={() => close(top.id)} />}
           {top.kind === 'mcp' && <McpDialog key={top.id} onClose={() => close(top.id)} />}
+          {top.kind === 'render' && (
+            <RenderDialog
+              key={top.id}
+              initial={top.initial}
+              onDone={(v) => {
+                close(top.id);
+                top.resolve(v);
+              }}
+            />
+          )}
           {top.kind === 'script' && (
             <ScriptDialog
               key={top.id}
@@ -304,9 +317,9 @@ function NewsDialog({ d, onClose }: { d: Extract<Dialog, { kind: 'news' }>; onCl
   );
 }
 
-export function Frame({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean }) {
+export function Frame({ title, onClose, children, footer, wide, className }: { title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; className?: string }) {
   return (
-    <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
+    <div className={`modal ${wide ? 'wide' : ''} ${className ?? ''}`} role="dialog" aria-label={title}>
       <div className="modal-head">
         <span>{title}</span>
         <button className="modal-x" onClick={onClose} title="Fermer (Échap)">
@@ -461,7 +474,21 @@ function FormDialog({ spec, onDone }: { spec: FormSpec; onDone: (v: FormValues |
           return (
             <Fragment key={f.key}>
               <label title={f.hint}>{f.label}</label>
-              {f.type === 'select' ? (
+              {f.type === 'color' ? (
+                <div className="rp-color">
+                  <input ref={reg} type="color" value={String(v[f.key])} onChange={(e) => set(e.target.value)} aria-label={f.label} />
+                  {f.options && (
+                    <select value={f.options.some((o) => o.value === String(v[f.key]).toLowerCase()) ? String(v[f.key]).toLowerCase() : ''} onChange={(e) => e.target.value && set(e.target.value)}>
+                      <option value="">Couleur libre</option>
+                      {f.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : f.type === 'select' ? (
                 <select ref={reg} value={String(v[f.key])} onChange={(e) => set(e.target.value)}>
                   {f.options?.map((o) => (
                     <option key={o.value} value={o.value}>

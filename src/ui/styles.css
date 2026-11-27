@@ -3410,3 +3410,144 @@ code {
 .mcp-msg.bad {
   color: var(--bad);
 }
+
+/* --- Lumières et ambiance (fenêtre qui laisse la vue utilisable) --- */
+.modal-backdrop:has(> .modal.render-panel) {
+  background: transparent;
+  place-items: start end;
+  padding: 96px 18px 0 0;
+  pointer-events: none;
+}
+
+.modal.render-panel {
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100vh - 130px);
+  pointer-events: auto;
+}
+
+.rp-intro {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.rp-section {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 3px;
+}
+
+.rp-lights {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.rp-list {
+  min-height: 96px;
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg0);
+}
+
+.rp-empty {
+  padding: 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.rp-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.rp-item.on {
+  background: var(--accent-soft);
+}
+
+.rp-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  flex: none;
+}
+
+.rp-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-pct {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.rp-add {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rp-grid {
+  grid-template-columns: 120px minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+.rp-slider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 62px 14px;
+  align-items: center;
+  gap: 6px;
+}
+
+.rp-slider input[type='range'] {
+  height: auto;
+  padding: 0;
+}
+
+.rp-vec {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.rp-vec input {
+  min-width: 0;
+}
+
+.rp-color {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.rp-color input[type='color'] {
+  padding: 0 2px;
+  width: 40px;
+}
+
+.rp-add button {
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.rp-add button:hover:not(:disabled) {
+  background: var(--bg4);
+}

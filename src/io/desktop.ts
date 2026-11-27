@@ -42,6 +42,11 @@ export interface DesktopApi {
   mcpInstall?(): Promise<{ ok: boolean; canceled?: boolean; error?: string; file?: string }>;
   /** Appels d'outils MCP relayés par le processus principal ; la réponse est renvoyée par le pont. */
   onMcpRequest?(cb: (req: { id: number; tool: string; args: Record<string, unknown>; outputDir: string }) => Promise<unknown>): void;
+  /**
+   * Fermeture de la fenêtre : le processus principal attend la réponse de l'interface
+   * (enregistrer les dessins modifiés) avant de quitter. Absent des versions < 1.4.
+   */
+  onCloseRequest?(cb: () => Promise<boolean>): void;
   /** Fichiers ouverts par double-clic dans l'Explorateur (au démarrage ou application déjà lancée). */
   onOpenFile(cb: (file: DesktopFile) => void): void;
 }

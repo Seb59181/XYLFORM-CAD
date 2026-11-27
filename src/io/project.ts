@@ -11,6 +11,7 @@ import type { Constraint } from '../core/constraints/types';
 import type { AppHost } from '../app/AppHost';
 import type { DisplayMesh, SolidResult } from '../kernel/protocol';
 import { hasRealThread } from '../app/history';
+import { sanitizeEnv, sanitizeLight, type LightDef, type RenderEnvironment, type TextureDef } from '../core/render';
 
 interface ProjectJson {
   format: 'xcad' | 'sebcad' | 'novacad';
@@ -33,6 +34,10 @@ interface ProjectJson {
   activeSection?: string | null;
   dimStyles?: Record<string, DimStyleDef>;
   currentDimStyle?: string;
+  /** Rendu réaliste (Xylform CAD ≥ 1.4) : lumières, ambiance, textures (`textures/<id>.<ext>`). */
+  lights?: LightDef[];
+  renderEnv?: RenderEnvironment;
+  textures?: (Omit<TextureDef, 'data'> & { content: string })[];
 }
 
 type StoredUnderlay = Omit<UnderlayDef, 'entities' | 'layers' | 'image'> & {
@@ -76,7 +81,17 @@ export async function saveProject(app: AppHost, doc: AppHost['doc'] = app.doc): 
     ...(doc.sectionPlanes.length ? { sectionPlanes: doc.sectionPlanes, activeSection: doc.activeSection } : {}),
     dimStyles: doc.dimStyles,
     currentDimStyle: doc.currentDimStyle,
+    ...(doc.lights.length ? { lights: doc.lights } : {}),
+    renderEnv: doc.renderEnv,
   };
+  const textures = Object.values(doc.usedTextures());
+  if (textures.length) {
+    json.textures = textures.map(({ data, ...meta }) => {
+      const content = `textures/${meta.id}.${IMAGE_EXT[meta.mime] ?? 'bin'}`;
+      files[content] = [data, { level: 0 }];
+      return { ...meta, content };
+    });
+  }
   const underlays = Object.values(doc.underlays);
   if (underlays.length) {
     json.underlays = underlays.map((u) => {
@@ -138,6 +153,13 @@ export async function loadProject(app: AppHost, data: Uint8Array, fileName: stri
     }
     underlays[def.id] = def;
   }
+  const textures: Record<string, TextureDef> = {};
+  for (const t of json.textures ?? []) {
+    const { content, ...meta } = t;
+    const bin = files[content];
+    if (bin) textures[meta.id] = { ...meta, data: bin };
+    else log(`Texture « ${meta.name} » : image absente du fichier.`);
+  }
   Object.assign(app.doc.sysvars, json.sysvars ?? {});
   app.doc.load({
     entities,
@@ -155,5 +177,8 @@ export async function loadProject(app: AppHost, data: Uint8Array, fileName: stri
     activeSection: json.activeSection,
     dimStyles: json.dimStyles,
     currentDimStyle: json.currentDimStyle,
+    lights: (json.lights ?? []).map(sanitizeLight),
+    textures,
+    renderEnv: sanitizeEnv(json.renderEnv),
   });
 }

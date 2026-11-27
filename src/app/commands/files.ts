@@ -54,6 +54,46 @@ export async function closeTab(app: AppHost, tab: DocTab, print: (m: string) => 
   return true;
 }
 
+/**
+ * Fermeture de l'application : pour les dessins modifiés, propose Enregistrer tout / Choisir
+ * pour chaque dessin / Quitter sans enregistrer / Annuler. Renvoie false si l'utilisateur annule
+ * (ou si un enregistrement est abandonné).
+ */
+export async function confirmQuit(app: AppHost): Promise<boolean> {
+  const dirty = app.docs.filter((t) => t.doc.dirty && t.doc.size > 0);
+  if (!dirty.length) return true;
+  const print = (m: string) => app.log(m);
+  const start = app.tab;
+  const names = dirty.map((t) => `« ${t.doc.fileName} »`).join(', ');
+  let choice: number;
+  if (dirty.length === 1) {
+    if (dirty[0] !== app.tab) app.activate(dirty[0]!);
+    const c = await app.ui.choose(`Enregistrer les modifications de ${names} avant de quitter ?`, 'Quitter Xylform CAD', ['Enregistrer', 'Ne pas enregistrer', 'Annuler']);
+    choice = c === 0 ? 0 : c === 1 ? 2 : 3;
+  } else {
+    choice = await app.ui.choose(`${dirty.length} dessins ont des modifications non enregistrées : ${names}.`, 'Quitter Xylform CAD', ['Enregistrer tout', 'Choisir pour chaque dessin', 'Quitter sans enregistrer', 'Annuler']);
+  }
+  if (choice === 3) return false;
+  for (const t of dirty) {
+    if (!app.docs.includes(t)) continue;
+    let save = choice === 0;
+    if (choice === 1) {
+      app.activate(t);
+      const c = await app.ui.choose(`Enregistrer les modifications de « ${t.doc.fileName} » ?`, 'Quitter Xylform CAD', ['Enregistrer', 'Ne pas enregistrer', 'Annuler']);
+      if (c === 2) return false;
+      save = c === 0;
+    }
+    if (save) {
+      app.activate(t);
+      if (!(await saveActive(app, false, print))) return false;
+    }
+    // pas de proposition de récupération au prochain démarrage pour un dessin abandonné
+    app.autosave?.forget(t);
+  }
+  if (app.docs.includes(start)) app.activate(start);
+  return true;
+}
+
 /** Chemin du fichier d'un onglet (version bureau). */
 const tabPath = (t: DocTab) => (t.fileHandle && 'path' in t.fileHandle ? t.fileHandle.path : undefined);
 
