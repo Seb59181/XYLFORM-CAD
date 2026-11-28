@@ -1,0 +1,267 @@
+{
+ "pelouse": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 5.9765
+ },
+ "herbe_haute": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 11.9529
+ },
+ "terre": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 15.7741
+ },
+ "gravier": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 7.0759
+ },
+ "sable": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 6.6957
+ },
+ "macadam": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 4.0061
+ },
+ "paves_beton": {
+  "size": 800,
+  "height": 800.0,
+  "relief": 4.8855
+ },
+ "paves_pierre": {
+  "size": 800,
+  "height": 800.0,
+  "relief": 10.3409
+ },
+ "dalles_jardin": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 4.6
+ },
+ "ciment_lisse": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.198
+ },
+ "beton_brut": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 3.3565
+ },
+ "beton_banche": {
+  "size": 1200,
+  "height": 1200.0,
+  "relief": 9.0254
+ },
+ "parpaing": {
+  "size": 1020,
+  "height": 420.35,
+  "relief": 7.1422
+ },
+ "chape": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.4602
+ },
+ "platre_lisse": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.4087
+ },
+ "carreaux_platre": {
+  "size": 1332,
+  "height": 1000.3,
+  "relief": 0.8303
+ },
+ "plaque_platre": {
+  "size": 1200,
+  "height": 1200.0,
+  "relief": 0.3428
+ },
+ "crepi": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 2.3166
+ },
+ "enduit_chaux": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 2.3476
+ },
+ "pierre_bleue_adoucie": {
+  "size": 600,
+  "height": 600.0,
+  "relief": 0.0545
+ },
+ "pierre_bleue_bouchardee": {
+  "size": 400,
+  "height": 400.0,
+  "relief": 2.5358
+ },
+ "pierre_calcaire": {
+  "size": 1200,
+  "height": 600.0,
+  "relief": 8.5353
+ },
+ "moellons": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 30.5456
+ },
+ "marbre_blanc": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.002
+ },
+ "granit": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 0.0197
+ },
+ "ardoise": {
+  "size": 600,
+  "height": 600.0,
+  "relief": 2.1229
+ },
+ "brique_rouge": {
+  "size": 900,
+  "height": 600.29,
+  "relief": 8.9132
+ },
+ "brique_claire": {
+  "size": 900,
+  "height": 600.29,
+  "relief": 8.7467
+ },
+ "brique_blanche": {
+  "size": 900,
+  "height": 600.29,
+  "relief": 9.0154
+ },
+ "carrelage_blanc": {
+  "size": 800,
+  "height": 800.0,
+  "relief": 1.5162
+ },
+ "carrelage_gris": {
+  "size": 1200,
+  "height": 1200.0,
+  "relief": 1.513
+ },
+ "faience_metro": {
+  "size": 600,
+  "height": 300.0,
+  "relief": 2.5085
+ },
+ "carreaux_ciment": {
+  "size": 800,
+  "height": 800.0,
+  "relief": 0.6155
+ },
+ "mosaique": {
+  "size": 300,
+  "height": 300.0,
+  "relief": 1.2123
+ },
+ "tomettes": {
+  "size": 640,
+  "height": 554.38,
+  "relief": 2.6404
+ },
+ "chene": {
+  "size": 600,
+  "height": 600.0,
+  "relief": 0.4308
+ },
+ "pin": {
+  "size": 600,
+  "height": 600.0,
+  "relief": 0.5309
+ },
+ "noyer": {
+  "size": 600,
+  "height": 600.0,
+  "relief": 0.4131
+ },
+ "parquet_lames": {
+  "size": 1120,
+  "height": 1120.0,
+  "relief": 1.0621
+ },
+ "parquet_chevrons": {
+  "size": 840,
+  "height": 840.0,
+  "relief": 1.0811
+ },
+ "terrasse": {
+  "size": 900,
+  "height": 900.0,
+  "relief": 12.54
+ },
+ "contreplaque": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.2267
+ },
+ "osb": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 0.7233
+ },
+ "tuiles": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 54.3112
+ },
+ "ardoises_toit": {
+  "size": 1200,
+  "height": 1200.0,
+  "relief": 9.7722
+ },
+ "zinc": {
+  "size": 1000,
+  "height": 1000.0,
+  "relief": 26.3148
+ },
+ "bardage_bois": {
+  "size": 1040,
+  "height": 1040.0,
+  "relief": 10.2899
+ },
+ "tole_ondulee": {
+  "size": 760,
+  "height": 760.0,
+  "relief": 17.9997
+ },
+ "acier_rouille": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 0.6524
+ },
+ "tole_larmee": {
+  "size": 300,
+  "height": 300.0,
+  "relief": 1.5
+ },
+ "galvanise": {
+  "size": 500,
+  "height": 500.0,
+  "relief": 0.01
+ },
+ "moquette": {
+  "size": 300,
+  "height": 300.0,
+  "relief": 1.2
+ },
+ "cuir": {
+  "size": 300,
+  "height": 300.0,
+  "relief": 0.1999
+ }
+}

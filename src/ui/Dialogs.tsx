@@ -3,7 +3,8 @@
  * menu contextuel et notifications. `UiRoot` implémente `UiApi` et l'installe sur l'hôte.
  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { FormSpec, FormValues, MenuItem, MeshExportSettings, RaytraceSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import type { FormSpec, FormValues, MenuItem, MeshExportSettings, RaytraceSettings, ScriptEditorResult, ScriptEditorState, TextureLibraryChoice, UiApi } from '../app/AppHost';
+import { TextureLibraryDialog } from './TextureLibraryDialog';
 import { RaytraceDialog } from './RaytraceDialog';
 import { ScriptDialog } from './ScriptDialog';
 import { McpDialog } from './McpDialog';
@@ -30,7 +31,8 @@ type Dialog =
   | { id: number; kind: 'mcp' }
   | { id: number; kind: 'render'; initial: RenderPanelResult; resolve: (v: RenderPanelResult | null) => void }
   | { id: number; kind: 'raytrace'; initial: RaytraceSettings; resolve: () => void }
-  | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void };
+  | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void }
+  | { id: number; kind: 'texlib'; initial: TextureLibraryChoice & { solids: number }; resolve: (v: TextureLibraryChoice | null) => void };
 
 interface Toast {
   id: number;
@@ -103,6 +105,7 @@ export function UiRoot() {
       renderPanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'render', initial, resolve })),
       raytracePanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'raytrace', initial, resolve })),
       scriptEditor: (state) => new Promise((resolve) => push({ id: nextId++, kind: 'script', state, resolve })),
+      textureLibrary: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'texlib', initial, resolve })),
     };
     const previous = app.ui;
     app.ui = api;
@@ -165,6 +168,16 @@ export function UiRoot() {
           {top.kind === 'mcp' && <McpDialog key={top.id} onClose={() => close(top.id)} />}
           {top.kind === 'render' && (
             <RenderDialog
+              key={top.id}
+              initial={top.initial}
+              onDone={(v) => {
+                close(top.id);
+                top.resolve(v);
+              }}
+            />
+          )}
+          {top.kind === 'texlib' && (
+            <TextureLibraryDialog
               key={top.id}
               initial={top.initial}
               onDone={(v) => {

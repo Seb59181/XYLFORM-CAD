@@ -226,7 +226,7 @@ export function RaytraceDialog({ initial, onClose }: { initial: RaytraceSettings
               Lisser le bruit restant
             </label>
           </div>
-          <p className="rt-hint">Lumières, environnement : LUMIERES · matériaux (verre, métaux, matière lumineuse) : MATERIAU · images sur les faces : TEXTURE. Cadrez la vue avant d’ouvrir cette fenêtre.</p>
+          <p className="rt-hint">Lumières, environnement : LUMIERES · matériaux (verre, métaux, matière lumineuse) : MATERIAU · matières réalistes (pelouse, bois, pierre…) : MATIERES · images sur les faces : TEXTURE. Cadrez la vue avant d’ouvrir cette fenêtre.</p>
         </div>
         <div className="rt-main">
           <div className="rt-view" ref={holder} />

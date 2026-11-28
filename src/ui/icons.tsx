@@ -1189,6 +1189,18 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M26 1v1.5M31 6h-1.5M29.5 2.5l-1 1" stroke={Y} strokeWidth={1.2} />
     </>
   ),
+  texlib: (
+    <>
+      <rect x={4} y={4} width={11} height={11} rx={1} fill="#4f7f2a" stroke="none" />
+      <path d="M6 13l1-4M8.5 13.5l.5-5M11 13l1.2-4.5M13 13.5l-.4-3.5" stroke="#8fbf52" strokeWidth={1} fill="none" />
+      <rect x={17} y={4} width={11} height={11} rx={1} fill="#a24c31" stroke="none" />
+      <path d="M17 7.7h11M17 11.3h11M21 4v3.7M25 7.7v3.6M21 11.3v3.7" stroke="#d9cfc2" strokeWidth={0.9} fill="none" />
+      <rect x={4} y={17} width={11} height={11} rx={1} fill="#b48a5a" stroke="none" />
+      <path d="M4 20c3 1 7-1 11 0M4 23.5c4 1 7-1 11 0M4 26.5c3 .8 7-.6 11 0" stroke="#86592f" strokeWidth={0.9} fill="none" />
+      <rect x={17} y={17} width={11} height={11} rx={1} fill="#4a5058" stroke="none" />
+      <path d="M18.5 25c2-2 4-1 5-3s2.5-2 3.5-2.5" stroke="#c9ccd0" strokeWidth={0.8} fill="none" />
+    </>
+  ),
   texture: (
     <>
       <path d="M5 10l11-6 11 6v12l-11 6-11-6z" fill="#7a5233" stroke="none" />

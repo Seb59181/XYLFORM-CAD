@@ -4,3 +4,4 @@ release/
 *.log
 release-signed/
 release-notes.md
+__pycache__/

@@ -368,6 +368,12 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   occlusion ambiante). `LUMIERE` pose une ampoule, un projecteur ou un soleil réglable en couleur et en
   intensité ; `LUMIERES` règle lumières et ambiance avec aperçu en direct. `RENDU` enregistre une image
   PNG jusqu'en 4K (fond d'environnement, studio, blanc ou transparent).
+- **Bibliothèque de matériaux réalistes** (`MATIERES`) : 53 matières d'aspect réel en 9 catégories
+  (sols extérieurs : pelouse, macadam, gravier, pavés… ; béton et ciment ; plâtre, carreaux de plâtre et
+  enduits ; pierre bleue, marbre, granit… ; briques ; carrelage ; bois et parquets ; toiture et bardage ;
+  métaux et divers), plaquées à leur **taille réelle** avec **relief** (joints, brins d'herbe, fibres)
+  et **rugosité**, dans une fenêtre à vignettes avec recherche. Les textures sont calculées par
+  `scripts/textures/generer.py` (aucune photo tierce). `TEXTURE` peut aussi tirer un relief d'une photo importée.
 - **Rendu lancer de rayons** (`RAYONS`) : tracé de chemins sur la carte graphique, avec lumière
   globale, reflets et réfractions physiques (verre, PETG), ombres douces exactes ; l'image s'affine
   passe après passe et s'enregistre en PNG jusqu'en 4K (fond transparent possible).

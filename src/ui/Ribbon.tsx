@@ -444,6 +444,7 @@ const TABS: Tab[] = [
         title: 'Rendu',
         only: '3d',
         large: [
+          { label: 'Matières', icon: 'texlib', cmd: 'MATIERES', tip: 'Bibliothèque de matériaux réalistes : pelouse, macadam, carrelage, plâtre, béton, bois, pierre bleue, briques, tuiles… plaqués à leur taille réelle, avec relief' },
           { label: 'Rendu', icon: 'vs-render', ...style('render'), tip: 'Style Rendu : matériaux, reflets et ombres portées en direct' },
           { label: 'Photoréaliste', icon: 'vs-photo', ...style('photo'), tip: 'Style Photoréaliste : vos lumières, textures, environnement (studio, extérieur, atelier, nuit), ombres douces et occlusion ambiante' },
           { label: 'Lancer de rayons', icon: 'raytrace', cmd: 'RAYONS', tip: 'Rendu photoréaliste par lancer de rayons : lumière globale, reflets et réfractions physiques (verre), ombres douces exactes ; l’image s’affine passe après passe, enregistrement PNG jusqu’en 4K' },
