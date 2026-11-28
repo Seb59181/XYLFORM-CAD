@@ -93,6 +93,23 @@ export function Viewport() {
       },
       screenshot: () => vp.screenshot(),
       renderImage: (w, h, bg, ss) => vp.renderImage(w, h, bg, ss),
+      raytrace: async (settings) => {
+        const { RayTracer } = await import('../render/RayTracer');
+        const { materialById } = await import('../core/materials');
+        return new RayTracer(
+          {
+            vp,
+            lights: app.doc.lights,
+            env: app.doc.renderEnv,
+            materialOf: (h) => {
+              const e = app.doc.get(h);
+              return e && 'material' in e ? materialById(e.material as string | undefined) : undefined;
+            },
+            screenColor: '#212830',
+          },
+          settings,
+        );
+      },
       previewRender: (setup) => (setup ? scene.previewRender(setup.lights, setup.env) : scene.rebuild()),
       viewSize: () => vp.viewSize,
       worldUnitsPerPixel: () => vp.worldUnitsPerPixel(),

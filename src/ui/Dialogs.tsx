@@ -3,7 +3,8 @@
  * menu contextuel et notifications. `UiRoot` implémente `UiApi` et l'installe sur l'hôte.
  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { FormSpec, FormValues, MenuItem, MeshExportSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import type { FormSpec, FormValues, MenuItem, MeshExportSettings, RaytraceSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import { RaytraceDialog } from './RaytraceDialog';
 import { ScriptDialog } from './ScriptDialog';
 import { McpDialog } from './McpDialog';
 import { RenderDialog, type RenderPanelResult } from './RenderDialog';
@@ -28,6 +29,7 @@ type Dialog =
   | { id: number; kind: 'choose'; title: string; message: string; buttons: string[]; resolve: (v: number) => void }
   | { id: number; kind: 'mcp' }
   | { id: number; kind: 'render'; initial: RenderPanelResult; resolve: (v: RenderPanelResult | null) => void }
+  | { id: number; kind: 'raytrace'; initial: RaytraceSettings; resolve: () => void }
   | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void };
 
 interface Toast {
@@ -81,6 +83,7 @@ export function UiRoot() {
       choose: (message, title, buttons) => new Promise((resolve) => push({ id: nextId++, kind: 'choose', title, message, buttons, resolve })),
       mcpPanel: () => push({ id: nextId++, kind: 'mcp' }),
       renderPanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'render', initial, resolve })),
+      raytracePanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'raytrace', initial, resolve })),
       scriptEditor: (state) => new Promise((resolve) => push({ id: nextId++, kind: 'script', state, resolve })),
     };
     const previous = app.ui;
@@ -149,6 +152,16 @@ export function UiRoot() {
               onDone={(v) => {
                 close(top.id);
                 top.resolve(v);
+              }}
+            />
+          )}
+          {top.kind === 'raytrace' && (
+            <RaytraceDialog
+              key={top.id}
+              initial={top.initial}
+              onClose={() => {
+                close(top.id);
+                top.resolve();
               }}
             />
           )}

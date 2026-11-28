@@ -1306,7 +1306,7 @@ class AoPass extends GTAOPass {
 }
 
 /** Scènes d'ambiance (Y vers le haut) dont on tire les cartes d'environnement. */
-function environmentScene(kind: EnvironmentKind): THREE.Scene {
+export function environmentScene(kind: EnvironmentKind): THREE.Scene {
   const scene = new THREE.Scene();
   const basic = (color: THREE.ColorRepresentation, k = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.BackSide });
   const panel = (w: number, h: number, color: THREE.ColorRepresentation, k: number, pos: [number, number, number], rot: [number, number, number] = [0, 0, 0]) => {

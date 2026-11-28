@@ -368,6 +368,9 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   occlusion ambiante). `LUMIERE` pose une ampoule, un projecteur ou un soleil réglable en couleur et en
   intensité ; `LUMIERES` règle lumières et ambiance avec aperçu en direct. `RENDU` enregistre une image
   PNG jusqu'en 4K (fond d'environnement, studio, blanc ou transparent).
+- **Rendu lancer de rayons** (`RAYONS`) : tracé de chemins sur la carte graphique, avec lumière
+  globale, reflets et réfractions physiques (verre, PETG), ombres douces exactes ; l'image s'affine
+  passe après passe et s'enregistre en PNG jusqu'en 4K (fond transparent possible).
 - **Personnaliser** (`PERSONNALISER`, onglet Vue) : raccourcis clavier sur mesure (Ctrl, Alt, Maj +
   touche ou F1 à F12 → n'importe quelle commande avec ses options) et onglet de ruban « Mon onglet »
   (clic droit sur un bouton du ruban → Ajouter à Mon onglet).

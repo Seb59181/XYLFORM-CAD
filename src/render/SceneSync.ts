@@ -257,6 +257,7 @@ export class SceneSync {
         opacity: lib.opacity ?? 1,
         depthWrite: lib.opacity === undefined,
         envMapIntensity: lib.metalness > 0.5 ? 1.6 : 1,
+        ...(lib.emissive ? { emissive: lib.color ?? color, emissiveIntensity: lib.emissive } : {}),
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,

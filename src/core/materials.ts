@@ -13,6 +13,16 @@ export interface RenderMaterial {
   roughness: number;
   clearcoat?: number;
   opacity?: number;
+  /**
+   * Lancer de rayons : part de lumière qui traverse la matière (verre, plastique translucide),
+   * indice de réfraction et distance d'atténuation (en rayons du modèle : plus petit = teinte
+   * plus soutenue dans les parties épaisses).
+   */
+  transmission?: number;
+  ior?: number;
+  attenuation?: number;
+  /** Matière qui émet de la lumière (intensité ; couleur de l'objet). */
+  emissive?: number;
 }
 
 export const MATERIALS: RenderMaterial[] = [
@@ -27,10 +37,12 @@ export const MATERIALS: RenderMaterial[] = [
   { id: 'castiron', label: 'Fonte', group: 'Métaux', color: '#4a4c50', metalness: 0.8, roughness: 0.7 },
   { id: 'pla', label: 'Plastique mat (PLA)', group: 'Plastiques', metalness: 0, roughness: 0.6 },
   { id: 'abs', label: 'Plastique brillant (ABS)', group: 'Plastiques', metalness: 0, roughness: 0.25, clearcoat: 0.5 },
-  { id: 'petg', label: 'PETG translucide', group: 'Plastiques', metalness: 0, roughness: 0.12, clearcoat: 0.8, opacity: 0.6 },
+  { id: 'petg', label: 'PETG translucide', group: 'Plastiques', metalness: 0, roughness: 0.12, clearcoat: 0.8, opacity: 0.6, transmission: 0.9, ior: 1.57, attenuation: 0.6 },
   { id: 'resin', label: 'Résine', group: 'Plastiques', metalness: 0, roughness: 0.3, clearcoat: 1 },
   { id: 'rubber', label: 'Caoutchouc', group: 'Plastiques', color: '#1d1f22', metalness: 0, roughness: 0.95 },
-  { id: 'glass', label: 'Verre', group: 'Autres', color: '#dff0ff', metalness: 0, roughness: 0.02, clearcoat: 1, opacity: 0.25 },
+  { id: 'glass', label: 'Verre', group: 'Autres', color: '#dff0ff', metalness: 0, roughness: 0.02, clearcoat: 1, opacity: 0.25, transmission: 1, ior: 1.5, attenuation: 3 },
+  { id: 'frosted', label: 'Verre dépoli', group: 'Autres', color: '#eef4f8', metalness: 0, roughness: 0.3, opacity: 0.45, transmission: 1, ior: 1.5, attenuation: 3 },
+  { id: 'emissive', label: 'Matière lumineuse (LED, néon)', group: 'Autres', metalness: 0, roughness: 0.5, emissive: 4 },
   { id: 'woodlight', label: 'Bois clair', group: 'Autres', color: '#c49a6c', metalness: 0, roughness: 0.75 },
   { id: 'wooddark', label: 'Bois foncé', group: 'Autres', color: '#6b4528', metalness: 0, roughness: 0.7 },
   { id: 'concrete', label: 'Béton', group: 'Autres', color: '#9a9893', metalness: 0, roughness: 0.95 },

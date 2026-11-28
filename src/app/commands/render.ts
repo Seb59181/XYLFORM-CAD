@@ -2,14 +2,16 @@
  * Rendu réaliste : MATERIAU attribue un matériau (acier, laiton, PLA, verre…) aux solides ;
  * TEXTURE plaque une image sur leurs faces (taille du motif réglable) ; LUMIERE pose une
  * ampoule, un projecteur ou un soleil ; LUMIERES règle lumières et ambiance avec aperçu en
- * direct ; RENDU produit une image PNG haute définition (styles Rendu et Photoréaliste).
+ * direct ; RENDU produit une image PNG haute définition (styles Rendu et Photoréaliste) ;
+ * RAYONS calcule une image photoréaliste par lancer de rayons (lumière globale, reflets et
+ * réfractions physiques, ombres douces), qui s'affine passe après passe.
  */
 import type { CommandContext, CommandDefinition, Vec3 } from '../../core/commands';
 import type { Entity } from '../../core/document/Document';
 import { MATERIALS } from '../../core/materials';
 import { defaultLight, LIGHT_PRESETS, newTextureId, sanitizeLight, type LightKind, type TextureMapping } from '../../core/render';
 import { baseName, saveFile } from '../../io/fileAccess';
-import type { AppHost } from '../AppHost';
+import type { AppHost, RaytraceSettings } from '../AppHost';
 import { cmd, fmt, getAngle, getDistance, getKeyword, getPoint, isBody, kw, selectObjects } from './helpers';
 
 type Solid = Extract<Entity, { type: '3DSOLID' }>;
@@ -227,6 +229,7 @@ const render = cmd('RENDER', 'RENDU', ['REN', 'IMAGERENDU'], 'Image de rendu ré
         type: 'select',
         value: app.settings.visualStyle === 'render' ? 'render' : 'photo',
         options: [
+          { value: 'raytrace', label: 'Lancer de rayons (qualité photo : lumière globale, verre, ombres exactes)' },
           { value: 'photo', label: 'Photoréaliste (lumières, ambiance, textures)' },
           { value: 'render', label: 'Rendu (ombres portées)' },
           { value: 'realistic', label: 'Réaliste (sans ombres)' },
@@ -252,6 +255,10 @@ const render = cmd('RENDER', 'RENDU', ['REN', 'IMAGERENDU'], 'Image de rendu ré
   });
   if (!v) return;
   const size = SIZES[String(v.size)] ?? [view.w, view.h];
+  if (v.quality === 'raytrace') {
+    const bg = String(v.bg);
+    return openRaytrace(ctx, app, { width: size[0], height: size[1], background: bg === 'none' ? 'transparent' : bg === '#ffffff' ? 'white' : bg === '#212830' ? 'screen' : bg === 'studio' ? 'studio' : 'environment' });
+  }
   const prev = app.settings.visualStyle;
   const want = v.quality === 'render' ? 'render' : v.quality === 'realistic' ? 'realistic' : 'photo';
   const selection = app.selection.list();
@@ -276,4 +283,45 @@ const render = cmd('RENDER', 'RENDU', ['REN', 'IMAGERENDU'], 'Image de rendu ré
   }
 });
 
-export const renderCommands: CommandDefinition[] = [material, texture, light, lights, render];
+/** Réglages de départ du lancer de rayons, tirés de l'ambiance du dessin. */
+export function raytraceDefaults(app: AppHost, p: Partial<RaytraceSettings> = {}): RaytraceSettings {
+  const view = app.viewport?.viewSize() ?? { w: 1280, h: 720 };
+  const env = app.doc.renderEnv;
+  return {
+    width: view.w,
+    height: view.h,
+    maxSamples: 128,
+    bounces: 5,
+    background: env.background === 'environment' ? 'environment' : 'screen',
+    floor: env.ground ? 'studio' : 'none',
+    softness: 35,
+    denoise: true,
+    exposure: env.exposure,
+    ...p,
+  };
+}
+
+async function openRaytrace(ctx: CommandContext, app: AppHost, p: Partial<RaytraceSettings> = {}): Promise<void> {
+  const vp = app.viewport;
+  if (!vp?.raytrace) return ctx.print('Le lancer de rayons demande une vue 3D.');
+  if (app.settings.workspace !== '3d') return ctx.print('Le rendu se fait dans l’espace 3D (bouton 3D de la barre de titre).');
+  const prev = app.settings.visualStyle;
+  const selection = app.selection.list();
+  app.selection.clear();
+  // les matériaux et textures de la vue Photoréaliste servent de base au lancer de rayons
+  if (prev !== 'photo') app.set('visualStyle', 'photo');
+  await new Promise((r) => setTimeout(r, 80));
+  ctx.print('Lancer de rayons : l’image s’affine passe après passe ; Enregistrer l’image… à tout moment.');
+  try {
+    await app.ui.raytracePanel(raytraceDefaults(app, p));
+  } finally {
+    if (prev !== 'photo') app.set('visualStyle', prev);
+    app.selection.set(selection);
+  }
+}
+
+const raytrace = cmd('RAYTRACE', 'RAYONS', ['LANCERRAYONS', 'RENDUPHOTO', 'RENDURAYONS', 'PATHTRACE'], 'Rendu photoréaliste par lancer de rayons : lumière globale, reflets et réfractions physiques, ombres douces, image qui s’affine', async (ctx, app) => {
+  await openRaytrace(ctx, app);
+});
+
+export const renderCommands: CommandDefinition[] = [material, texture, light, lights, render, raytrace];
