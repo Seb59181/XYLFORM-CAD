@@ -3,7 +3,8 @@
  * menu contextuel et notifications. `UiRoot` implémente `UiApi` et l'installe sur l'hôte.
  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { FormSpec, FormValues, MenuItem, MeshExportSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import type { FormSpec, FormValues, MenuItem, MeshExportSettings, RaytraceSettings, ScriptEditorResult, ScriptEditorState, UiApi } from '../app/AppHost';
+import { RaytraceDialog } from './RaytraceDialog';
 import { ScriptDialog } from './ScriptDialog';
 import { McpDialog } from './McpDialog';
 import { RenderDialog, type RenderPanelResult } from './RenderDialog';
@@ -28,6 +29,7 @@ type Dialog =
   | { id: number; kind: 'choose'; title: string; message: string; buttons: string[]; resolve: (v: number) => void }
   | { id: number; kind: 'mcp' }
   | { id: number; kind: 'render'; initial: RenderPanelResult; resolve: (v: RenderPanelResult | null) => void }
+  | { id: number; kind: 'raytrace'; initial: RaytraceSettings; resolve: () => void }
   | { id: number; kind: 'script'; state: ScriptEditorState; resolve: (v: ScriptEditorResult | null) => void };
 
 interface Toast {
@@ -43,6 +45,7 @@ export function UiRoot() {
   const [dialogs, setDialogs] = useState<Dialog[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [busy, setBusy] = useState<{ id: number; message: string; state: 'run' | 'ok' } | null>(null);
 
   useEffect(() => {
     const push = (d: Dialog) => setDialogs((ds) => [...ds, d]);
@@ -51,6 +54,23 @@ export function UiRoot() {
         const id = nextId++;
         setToasts((ts) => [...ts.slice(-4), { id, message, kind }]);
         setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), kind === 'error' ? 7000 : 4000);
+      },
+      busy: (message) => {
+        const id = nextId++;
+        const t0 = performance.now();
+        setBusy({ id, message, state: 'run' });
+        let ended = false;
+        return (outcome, doneMessage) => {
+          if (ended) return;
+          ended = true;
+          // le cercle reste au moins 1 s : on voit que l'action a eu lieu
+          const wait = Math.max(0, 1000 - (performance.now() - t0));
+          window.setTimeout(() => {
+            if (outcome !== 'ok') return setBusy((b) => (b?.id === id ? null : b));
+            setBusy((b) => (b?.id === id ? { id, message: doneMessage ?? b.message, state: 'ok' } : b));
+            window.setTimeout(() => setBusy((b) => (b?.id === id ? null : b)), 900);
+          }, wait);
+        };
       },
       openFile: (accept) =>
         new Promise((resolve) => {
@@ -81,6 +101,7 @@ export function UiRoot() {
       choose: (message, title, buttons) => new Promise((resolve) => push({ id: nextId++, kind: 'choose', title, message, buttons, resolve })),
       mcpPanel: () => push({ id: nextId++, kind: 'mcp' }),
       renderPanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'render', initial, resolve })),
+      raytracePanel: (initial) => new Promise((resolve) => push({ id: nextId++, kind: 'raytrace', initial, resolve })),
       scriptEditor: (state) => new Promise((resolve) => push({ id: nextId++, kind: 'script', state, resolve })),
     };
     const previous = app.ui;
@@ -152,6 +173,16 @@ export function UiRoot() {
               }}
             />
           )}
+          {top.kind === 'raytrace' && (
+            <RaytraceDialog
+              key={top.id}
+              initial={top.initial}
+              onClose={() => {
+                close(top.id);
+                top.resolve();
+              }}
+            />
+          )}
           {top.kind === 'script' && (
             <ScriptDialog
               key={top.id}
@@ -186,6 +217,20 @@ export function UiRoot() {
         </div>
       )}
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      {busy && (
+        <div className={`busy-overlay ${busy.state}`} role="status" aria-live="polite">
+          <div className="busy-box">
+            {busy.state === 'ok' ? (
+              <svg className="busy-check" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <span className="busy-spinner" aria-hidden="true" />
+            )}
+            <span>{busy.message}</span>
+          </div>
+        </div>
+      )}
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`} onClick={() => setToasts((ts) => ts.filter((x) => x.id !== t.id))}>

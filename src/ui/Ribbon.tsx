@@ -446,6 +446,7 @@ const TABS: Tab[] = [
         large: [
           { label: 'Rendu', icon: 'vs-render', ...style('render'), tip: 'Style Rendu : matériaux, reflets et ombres portées en direct' },
           { label: 'Photoréaliste', icon: 'vs-photo', ...style('photo'), tip: 'Style Photoréaliste : vos lumières, textures, environnement (studio, extérieur, atelier, nuit), ombres douces et occlusion ambiante' },
+          { label: 'Lancer de rayons', icon: 'raytrace', cmd: 'RAYONS', tip: 'Rendu photoréaliste par lancer de rayons : lumière globale, reflets et réfractions physiques (verre), ombres douces exactes ; l’image s’affine passe après passe, enregistrement PNG jusqu’en 4K' },
           { label: 'Image de rendu', icon: 'render-image', cmd: 'RENDU', tip: 'Enregistre une image PNG haute définition (jusqu’en 4K), fond d’environnement, studio, blanc ou transparent' },
         ],
         small: [

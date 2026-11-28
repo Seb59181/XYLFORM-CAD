@@ -1222,6 +1222,16 @@ export const ICONS: Record<string, JSX.Element> = {
       <circle cx={14} cy={20} r={2} fill="#fff" opacity={0.5} />
     </>
   ),
+  raytrace: (
+    <>
+      <path d="M3 27h26" stroke="#9aa6b5" strokeWidth={1.4} />
+      <ellipse cx={19} cy={26} rx={8} ry={1.8} fill="#0d1014" opacity={0.6} stroke="none" />
+      <circle cx={18} cy={18} r={7} fill="#7fb6e8" stroke="none" />
+      <circle cx={15.5} cy={15.5} r={2.4} fill="#ffffff" opacity={0.9} stroke="none" />
+      <path d="M3 4l9 8M3 4l2 9M3 4l9 1" stroke={Y} strokeWidth={1.3} />
+      <circle cx={3.5} cy={4.5} r={1.8} fill={Y} stroke="none" />
+    </>
+  ),
   'render-image': (
     <>
       <rect x={3} y={6} width={26} height={20} rx={2} fill="#dfe5ee" />

@@ -5,6 +5,30 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.5.1 — 28 novembre 2026
+
+Xylform CAD 1.5.1 : on voit maintenant que le dessin s'enregistre.
+
+- **Enregistrement visible** : pendant l'enregistrement du dessin (Ctrl+S, `ENREG`, `ENREGSOUS`, `ENREGTOUT`), un petit cercle tournant s'affiche au centre de l'écran (au moins 1 seconde), puis une coche verte confirme l'enregistrement. Rien ne s'affiche si l'enregistrement est annulé.
+
+---
+
+## 1.5.0 — 28 novembre 2026
+
+Xylform CAD 1.5.0 : un vrai moteur de rendu par lancer de rayons, pour des images de qualité photo.
+
+- **Rendu lancer de rayons** (**`RAYONS`**, onglet Vue › Rendu › Lancer de rayons, ou `RENDU` › Lancer de rayons) : l'image est calculée par tracé de chemins de lumière sur la carte graphique.
+  - **Lumière globale** : la lumière rebondit d'un objet à l'autre (coins éclairés par le sol, teinte d'une pièce colorée sur sa voisine), 2 à 12 rebonds.
+  - **Reflets et réfractions physiques** : métaux et chrome qui reflètent vraiment la scène, **verre** et **PETG** qui dévient la lumière et se teintent dans les parties épaisses.
+  - **Ombres douces exactes** : chaque lampe et le soleil ont une taille réelle (réglage « Douceur des ombres », des ombres nettes aux ombres très douces).
+  - **Image progressive** : bruitée au départ, elle s'affine à chaque passe ; compteur de passes, temps écoulé et durée restante, **Pause / Reprendre**, lissage du bruit restant (filtre qui garde les arêtes nettes).
+  - **Enregistrer l'image…** en PNG à tout moment : vue actuelle, 1280 × 720, Full HD, 2560 × 1440, **4K**, carré 2048 ou A4 paysage ; qualité Aperçu (32 passes) à Très haute (2048 passes) ou sans fin.
+  - Reprend vos **matériaux**, **textures**, **lumières** et **ambiance** (studio, extérieur, atelier, nuit ; exposition, soleil par défaut). Fond environnement flou, dégradé studio, blanc, couleur de l'écran ou **transparent**. Sol gris studio, blanc, sombre, **noir brillant** (reflets) ou bois, ou sans sol.
+  - Les grandes images sont calculées par tuiles : l'interface reste fluide pendant le rendu.
+- **Nouveaux matériaux** (`MATERIAU`) : **Verre dépoli** et **Matière lumineuse** (LED, néon : la pièce éclaire la scène dans le lancer de rayons).
+
+---
+
 ## 1.4.0 — 27 novembre 2026
 
 Xylform CAD 1.4.0 : un mode de rendu photoréaliste, vos propres lumières, des textures sur les pièces, un pinceau de propriétés, et plus de travail perdu à la fermeture.

@@ -173,6 +173,50 @@ const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
 };
 
+/** Fond de l'image du lancer de rayons. */
+export type RaytraceBackground = 'environment' | 'studio' | 'white' | 'screen' | 'transparent';
+/** Sol du lancer de rayons (reçoit ombres, reflets et lumière renvoyée). */
+export type RaytraceFloor = 'studio' | 'white' | 'dark' | 'gloss' | 'wood' | 'none';
+
+export interface RaytraceSettings {
+  width: number;
+  height: number;
+  /** Passes visées (0 = sans fin, jusqu'à l'arrêt). */
+  maxSamples: number;
+  /** Rebonds de la lumière (lumière globale) : 2 = rapide, 5 = conseillé, 10 = intérieurs. */
+  bounces: number;
+  background: RaytraceBackground;
+  floor: RaytraceFloor;
+  /** Taille des lampes et du soleil (%) : 0 = ombres nettes, 100 = très douces. */
+  softness: number;
+  /** Lissage du bruit restant (filtre qui préserve les arêtes). */
+  denoise: boolean;
+  /** Exposition (%) ; absente = celle de l'ambiance. */
+  exposure?: number;
+}
+
+export type RaytraceStatus = 'building' | 'running' | 'paused' | 'done' | 'error';
+
+/** Rendu par lancer de rayons en cours (image qui s'affine passe après passe). */
+export interface RaytraceJob {
+  readonly canvas: HTMLCanvasElement;
+  readonly status: RaytraceStatus;
+  readonly error: string | undefined;
+  /** Construction de la scène (0–1). */
+  readonly progress: number;
+  readonly samples: number;
+  readonly maxSamples: number;
+  readonly elapsedMs: number;
+  readonly width: number;
+  readonly height: number;
+  onUpdate: (() => void) | undefined;
+  start(): Promise<void>;
+  setPaused(p: boolean): void;
+  update(p: Partial<Pick<RaytraceSettings, 'bounces' | 'denoise' | 'maxSamples' | 'exposure'>>): void;
+  toBlob(): Promise<Blob | null>;
+  dispose(): void;
+}
+
 export interface ViewportApi {
   zoomExtents(): void;
   zoomWindow(a: Vec3, b: Vec3): void;
@@ -195,6 +239,8 @@ export interface ViewportApi {
   renderImage(width: number, height: number, background: string | 'studio' | 'environment' | null, supersample?: number): Promise<Blob | null>;
   /** Aperçu en direct des lumières et de l'ambiance (sans modifier le dessin) ; null = revenir au dessin. */
   previewRender(setup: { lights: LightDef[]; env: RenderEnvironment } | null): void;
+  /** Rendu photoréaliste par lancer de rayons de la vue actuelle (non démarré : `start()`). */
+  raytrace?(settings: RaytraceSettings): Promise<RaytraceJob>;
   /** Taille du viewport en pixels. */
   viewSize(): { w: number; h: number };
   /** Taille d'un pixel en unités du dessin (à la cible de la caméra). */
@@ -238,6 +284,11 @@ export interface MeshExportSettings {
 
 export interface UiApi {
   toast(message: string, kind?: 'info' | 'success' | 'error'): void;
+  /**
+   * Indicateur d'activité (cercle tournant au centre de l'écran, au moins 1 s) ; la fonction
+   * renvoyée le termine : coche verte si réussi, rien si annulé.
+   */
+  busy(message: string): (outcome: 'ok' | 'cancel' | 'error', doneMessage?: string) => void;
   openFile(accept: string): Promise<File | null>;
   prompt(title: string, initial?: string, label?: string): Promise<string | null>;
   confirm(message: string, title?: string, labels?: { ok: string; cancel: string }): Promise<boolean>;
@@ -257,6 +308,8 @@ export interface UiApi {
   mcpPanel(): void;
   /** Fenêtre « Lumières et ambiance » (aperçu en direct) : réglages validés, ou null si annulée. */
   renderPanel(initial: { lights: LightDef[]; env: RenderEnvironment }): Promise<{ lights: LightDef[]; env: RenderEnvironment } | null>;
+  /** Fenêtre du rendu par lancer de rayons (aperçu progressif, enregistrement PNG). */
+  raytracePanel(initial: RaytraceSettings): Promise<void>;
   /** Fenêtre des scripts de commandes : texte à exécuter, ou null si fermée. */
   scriptEditor(state: ScriptEditorState): Promise<ScriptEditorResult | null>;
 }
@@ -362,6 +415,7 @@ const KEEP_SELECTION = new Set(['GRIP_EDIT', 'PROPERTIES', 'LIST', 'MASSPROP', '
 
 const fallbackUi: UiApi = {
   toast: (m) => console.info(m),
+  busy: () => () => undefined,
   openFile: async () => null,
   prompt: async (_t, initial) => initial ?? null,
   confirm: async () => true,
@@ -375,6 +429,7 @@ const fallbackUi: UiApi = {
   scriptEditor: async () => null,
   mcpPanel: () => undefined,
   renderPanel: async () => null,
+  raytracePanel: async () => undefined,
 };
 
 let tabCounter = 0;

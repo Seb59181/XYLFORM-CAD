@@ -1,6 +1,6 @@
 {
   "name": "xylform-cad",
-  "version": "1.4.0",
+  "version": "1.5.1",
   "productName": "Xylform CAD",
   "private": true,
   "description": "Xylform CAD, by Seb. — CAO 2D/3D pour l'impression 3D : noyau OpenCascade.js, rendu Three.js, DWG/DXF/STEP, export STL/3MF, mise à jour automatique.",
@@ -39,6 +39,8 @@
     "react-dom": "^19.3.1",
     "resedit": "^3.1.0",
     "three": "^0.180.0",
+    "three-gpu-pathtracer": "0.0.24",
+    "three-mesh-bvh": "0.9.18",
     "typescript": "~5.9.0",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
