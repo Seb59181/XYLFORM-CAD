@@ -82,7 +82,7 @@ const view = cmd(
   { transparent: true },
 );
 
-export const STYLE_LABEL: Record<VisualStyle, string> = { realistic: 'Réaliste', render: 'Rendu', shaded: 'Ombré', wireframe: 'Filaire', xray: 'Rayons X', technical: 'Technique' };
+export const STYLE_LABEL: Record<VisualStyle, string> = { realistic: 'Réaliste', render: 'Rendu', photo: 'Photoréaliste', shaded: 'Ombré', wireframe: 'Filaire', xray: 'Rayons X', technical: 'Technique' };
 
 /** Applique à la vue l'état d'une scène : espace, style, projection, calques visibles, plan de coupe. */
 function applyScene(app: AppHost, v: NamedView): void {
@@ -186,7 +186,7 @@ const visualStyle = cmd('VSCURRENT', 'STYLEVISUEL', ['SV', 'VS'], 'Style visuel 
   const v = await getKeyword(
     ctx,
     'Choisissez un style visuel',
-    [kw('realistic', 'Réaliste', 'R', 'Faces ombrées et arêtes'), kw('render', 'Rendu', 'RE', 'Matériaux, reflets et ombres portées'), kw('shaded', 'Ombré', 'O', 'Faces ombrées sans arêtes'), kw('wireframe', 'Filaire', 'F', 'Arêtes seules'), kw('xray', 'RayonsX', 'X', 'Faces transparentes'), kw('technical', 'Technique', 'T', 'Dessin au trait sur fond blanc : arêtes cachées en tirets, contours apparents')],
+    [kw('realistic', 'Réaliste', 'R', 'Faces ombrées et arêtes'), kw('render', 'Rendu', 'RE', 'Matériaux, reflets et ombres portées'), kw('photo', 'Photoréaliste', 'P', 'Lumières du dessin, textures, ambiance et occlusion ambiante'), kw('shaded', 'Ombré', 'O', 'Faces ombrées sans arêtes'), kw('wireframe', 'Filaire', 'F', 'Arêtes seules'), kw('xray', 'RayonsX', 'X', 'Faces transparentes'), kw('technical', 'Technique', 'T', 'Dessin au trait sur fond blanc : arêtes cachées en tirets, contours apparents')],
     app.settings.visualStyle,
   );
   app.set('visualStyle', v as VisualStyle);
@@ -517,16 +517,6 @@ const massprop = cmd('MASSPROP', 'PROPMASSE', ['PM'], 'Propriétés de masse des
 // Propriétés et presse-papiers
 // ---------------------------------------------------------------------------
 
-const matchprop = cmd('MATCHPROP', 'CORRESPROP', ['MA', 'CP2'], 'Copie le calque et la couleur d’un objet vers d’autres', async (ctx, app) => {
-  const { e: src } = await pickRequired(ctx, 'Choisissez l’objet source');
-  ctx.print(`Paramètres courants : Calque "${src.layer}", Couleur ${src.color ?? 'DuCalque'}`);
-  for (;;) {
-    const r = await pickEntity(ctx, 'Choisissez l’objet de destination (Entrée pour terminer)', { allowNone: true });
-    if (!r || typeof r === 'string') return;
-    app.doc.replaceEntity(r.handle, { layer: src.layer, color: src.color });
-  }
-});
-
 let clipboard: { entities: Entity[]; base: Vec3; layers: LayerDef[] } | null = null;
 
 /** Met des objets dans le presse-papiers, avec leurs calques (collage dans un autre dessin). */
@@ -669,7 +659,6 @@ export const utilityCommands: CommandDefinition[] = [
   idPoint,
   list,
   massprop,
-  matchprop,
   copyClip,
   copyBase,
   pasteOrig,

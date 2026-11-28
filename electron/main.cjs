@@ -63,6 +63,9 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 let pending = [];
 let ready = false;
 let win = null;
+/** L'interface sait demander l'enregistrement des dessins modifiés avant de quitter. */
+let closeGuard = false;
+let allowClose = false;
 
 const filesFromArgs = (argv) => argv.slice(1).filter((a) => !a.startsWith('-') && OPENABLE.test(a));
 
@@ -103,6 +106,23 @@ function createWindow() {
     win.show();
   });
   updater.attach(win);
+  // fermeture : l'interface propose d'enregistrer chaque dessin modifié, puis confirme
+  let asked = 0;
+  win.on('close', (event) => {
+    if (allowClose || !closeGuard) return;
+    // interface bloquée (aucune réponse depuis 15 s) : on laisse fermer au second essai
+    if (asked && Date.now() - asked > 15000) return;
+    event.preventDefault();
+    if (!asked || Date.now() - asked > 1500) win.webContents.send('close-request');
+    asked = Date.now();
+  });
+  win.webContents.on('render-process-gone', () => {
+    closeGuard = false;
+  });
+  ipcMain.removeAllListeners('close-cancelled');
+  ipcMain.on('close-cancelled', () => {
+    asked = 0;
+  });
   // le dessin n'est pas enregistré : on demande avant de fermer
   win.webContents.on('will-prevent-unload', (event) => {
     const choice = dialog.showMessageBoxSync(win, {
@@ -130,6 +150,8 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
     ready = false;
+    closeGuard = false;
+    allowClose = false;
   });
   void win.loadURL(DEV_URL || 'app://sebcad/index.html');
 }
@@ -176,6 +198,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle('check-updates', (_e, manual) => updater.check(!!manual));
     ipcMain.handle('app-info', () => ({ version: app.getVersion(), packaged: app.isPackaged, portable: !!process.env.PORTABLE_EXECUTABLE_FILE, updates: updater.available() }));
+    ipcMain.on('close-guard', () => {
+      closeGuard = true;
+    });
+    ipcMain.on('close-confirmed', () => {
+      allowClose = true;
+      win?.close();
+    });
     ipcMain.on('renderer-ready', () => {
       ready = true;
       const list = pending;

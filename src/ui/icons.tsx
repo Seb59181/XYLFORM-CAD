@@ -1178,6 +1178,40 @@ export const ICONS: Record<string, JSX.Element> = {
       <path d="M24 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill={Y} />
     </>
   ),
+  'vs-photo': (
+    <>
+      <path d="M3 26h26" stroke="#9aa6b5" strokeWidth={1.4} />
+      <ellipse cx={18} cy={25} rx={10} ry={2.4} fill="#0d1014" opacity={0.7} stroke="none" />
+      <path d="M8 24V14l8-5 8 5v10z" fill="#c9a94e" stroke="none" />
+      <path d="M16 9v15l8 0V14z" fill="#8a6f2e" stroke="none" />
+      <path d="M8 14l8-5 8 5-8 4z" fill="#e8cf86" stroke="none" />
+      <circle cx={26} cy={6} r={3} fill={Y} stroke="none" />
+      <path d="M26 1v1.5M31 6h-1.5M29.5 2.5l-1 1" stroke={Y} strokeWidth={1.2} />
+    </>
+  ),
+  texture: (
+    <>
+      <path d="M5 10l11-6 11 6v12l-11 6-11-6z" fill="#7a5233" stroke="none" />
+      <path d="M5 10l11 6 11-6M16 16v12" stroke="#2b1c10" strokeWidth={1} fill="none" />
+      <path d="M7 13c3 1 5 3 7 3M7 18c3 1 5 2 7 3M18 16c3-1 5-2 7-4M18 21c3-1 5-3 7-4M9 9c3 1 5 2 7 2s4-1 7-3" stroke="#c49a6c" strokeWidth={1.1} fill="none" />
+    </>
+  ),
+  light: (
+    <>
+      <path d="M16 4a8 8 0 0 0-5 14.3V22h10v-3.7A8 8 0 0 0 16 4z" fill={Y} stroke="none" />
+      <path d="M12 24h8M13 27h6" stroke="#9aa6b5" strokeWidth={1.8} strokeLinecap="round" />
+      <path d="M14 13l2 3 2-3" stroke="#8a6f2e" strokeWidth={1.2} fill="none" />
+    </>
+  ),
+  lights: (
+    <>
+      <path d="M4 6l7 3-2 4z" fill="#9aa6b5" stroke="none" />
+      <path d="M10 10l12 14H6z" fill={Y} opacity={0.35} stroke="none" />
+      <circle cx={24} cy={8} r={4} fill="#ffb46b" stroke="none" />
+      <path d="M5 27h22" stroke="#9aa6b5" strokeWidth={1.4} />
+      <path d="M22 16v8M19 19h6M19 22h6" stroke={A} strokeWidth={1.4} />
+    </>
+  ),
   material: (
     <>
       <circle cx={10} cy={11} r={6} fill="#c9a94e" />

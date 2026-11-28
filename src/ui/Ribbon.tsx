@@ -158,7 +158,7 @@ const TABS: Tab[] = [
       {
         title: 'Propriétés',
         small: [
-          { label: 'Correspondance', icon: 'matchprop', cmd: 'CORRESPROP' },
+          { label: 'Pinceau', icon: 'matchprop', cmd: 'PINCEAU', tip: 'Copie le calque, la couleur, le matériau, la texture, le style de texte, de cote ou de hachures d’un objet vers d’autres (option Paramètres : propriétés copiées)' },
           { label: 'Palette Propriétés', icon: 'pal-props', action: (app) => app.set('panel', 'properties') },
           { label: 'Liste', icon: 'list', cmd: 'LISTE' },
         ],
@@ -445,8 +445,14 @@ const TABS: Tab[] = [
         only: '3d',
         large: [
           { label: 'Rendu', icon: 'vs-render', ...style('render'), tip: 'Style Rendu : matériaux, reflets et ombres portées en direct' },
+          { label: 'Photoréaliste', icon: 'vs-photo', ...style('photo'), tip: 'Style Photoréaliste : vos lumières, textures, environnement (studio, extérieur, atelier, nuit), ombres douces et occlusion ambiante' },
+          { label: 'Image de rendu', icon: 'render-image', cmd: 'RENDU', tip: 'Enregistre une image PNG haute définition (jusqu’en 4K), fond d’environnement, studio, blanc ou transparent' },
+        ],
+        small: [
           { label: 'Matériaux', icon: 'material', cmd: 'MATERIAU', tip: 'Acier, aluminium, laiton, PLA, PETG, bois, verre… sur les solides choisis' },
-          { label: 'Image de rendu', icon: 'render-image', cmd: 'RENDU', tip: 'Enregistre une image PNG haute définition (jusqu’en 4K), fond studio, blanc ou transparent' },
+          { label: 'Texture', icon: 'texture', cmd: 'TEXTURE', tip: 'Plaque une image sur les faces des solides choisis, avec la taille du motif en mm' },
+          { label: 'Lumière', icon: 'light', cmd: 'LUMIERE', tip: 'Pose une ampoule, un projecteur ou un soleil, réglable en couleur et en intensité' },
+          { label: 'Lumières et ambiance', icon: 'lights', cmd: 'LUMIERES', tip: 'Toutes les lumières, environnement, exposition, occlusion ambiante, avec aperçu en direct' },
         ],
       },
       {

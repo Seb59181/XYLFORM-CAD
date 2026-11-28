@@ -26,6 +26,13 @@ contextBridge.exposeInMainWorld('sebcadDesktop', {
       ipcRenderer.send('mcp-response', req.id, result);
     });
   },
+  onCloseRequest: (cb) => {
+    ipcRenderer.on('close-request', async () => {
+      if (await cb()) ipcRenderer.send('close-confirmed');
+      else ipcRenderer.send('close-cancelled');
+    });
+    ipcRenderer.send('close-guard');
+  },
   onOpenFile: (cb) => {
     ipcRenderer.on('open-file', (_e, file) => cb(file));
     ipcRenderer.send('renderer-ready');

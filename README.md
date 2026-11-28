@@ -287,13 +287,14 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   barre d'état (GRILLE, RESOL, ORTHO, POLAIRE, ACCROBJ, DYN, EP).
 - **Vue** : perspective ou parallèle, vues standard et isométriques animées, cube de vue (26 directions,
   orbite par glisser), barre de navigation, analyse de coupe hachurée, grille adaptative
-  infinie, icône SCU, styles visuels Réaliste / Ombré / Filaire / Rayons X.
+  infinie, icône SCU, styles visuels Réaliste / Ombré / Filaire / Rayons X / Technique / Rendu / Photoréaliste.
 - **Dessin 2D** : ligne, polyligne (segments et arcs), cercle (centre/rayon, 2P, 3P, TTR), arc, rectangle,
   polygone, ellipse, spline, point, hachures (motifs, plein, dégradé, îlots), texte, cotes (alignée,
   linéaire, rayon, diamètre).
 - **Modification** : déplacer, copier, rotation, miroir, échelle, étirer, ajuster, prolonger, coupure,
   raccord, chanfrein, décaler, joindre, décomposer, diviser, réseaux rectangulaire et polaire, effacer,
-  poignées (étirement), copier/coller entre dessins, correspondance des propriétés.
+  poignées (étirement), copier/coller entre dessins, pinceau de propriétés (`PINCEAU` : calque, couleur,
+  matériau, texture, styles de texte, de cote et de hachures).
 - **Aides au dessin** : accrochage aux objets (extrémité, milieu, centre, quadrant, intersection,
   nodal, insertion, perpendiculaire, tangente, proche), ortho, repérage polaire, résolution de grille.
 - **Fonds de plan** (références externes) : `ATTACHER` un DWG, DXF, PDF
@@ -362,8 +363,11 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   quelconque (avec ou sans rotation des objets) ou le long d'une courbe orientées sur sa tangente ;
   les solides gardent leur historique.
 - **Rendu réaliste** : `MATERIAU` (acier, inox, aluminium, laiton, cuivre, PLA, PETG, bois, verre…),
-  style visuel Rendu avec ombres portées, `RENDU` enregistre une image PNG jusqu'en 4K (fond studio,
-  blanc ou transparent).
+  `TEXTURE` (image plaquée sur les faces, taille du motif en mm), styles visuels Rendu (ombres portées)
+  et **Photoréaliste** (vos lumières, ambiance studio / extérieur / atelier / nuit, ombres douces,
+  occlusion ambiante). `LUMIERE` pose une ampoule, un projecteur ou un soleil réglable en couleur et en
+  intensité ; `LUMIERES` règle lumières et ambiance avec aperçu en direct. `RENDU` enregistre une image
+  PNG jusqu'en 4K (fond d'environnement, studio, blanc ou transparent).
 - **Personnaliser** (`PERSONNALISER`, onglet Vue) : raccourcis clavier sur mesure (Ctrl, Alt, Maj +
   touche ou F1 à F12 → n'importe quelle commande avec ses options) et onglet de ruban « Mon onglet »
   (clic droit sur un bouton du ruban → Ajouter à Mon onglet).

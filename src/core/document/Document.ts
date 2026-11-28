@@ -13,6 +13,7 @@ import { isIsometry, multiply } from '../math/affine';
 import type { HoleSpec } from '../geometry/holes';
 import type { Linetype } from '../linetypes';
 import { assocPoint } from '../entities/geometry';
+import { DEFAULT_RENDER_ENV, type LightDef, type RenderEnvironment, type TextureDef, type TextureMapping } from '../render';
 
 export interface LayerDef {
   name: string;
@@ -127,7 +128,7 @@ export type Entity =
       textHeight?: number;
     })
   /** `primitive` : primitive d'origine (cotes modifiables dans la palette Propriétés). */
-  | (EntityBase & { type: '3DSOLID'; name: string; shapeId: string; display: DisplayMesh; primitive?: PrimitiveDef; history?: Feature[]; material?: string; threadsReal?: boolean })
+  | (EntityBase & { type: '3DSOLID'; name: string; shapeId: string; display: DisplayMesh; primitive?: PrimitiveDef; history?: Feature[]; material?: string; texture?: TextureMapping; threadsReal?: boolean })
   /**
    * Fond de plan (référence externe) : instance d'une définition `UnderlayDef` du document,
    * placée par point d'insertion, échelle, rotation (radians) et symétrie éventuelle.
@@ -357,6 +358,9 @@ interface Snapshot {
   sheets: DrawingSheet[];
   underlays: Record<string, UnderlayDef>;
   parameters: Record<string, string>;
+  lights: LightDef[];
+  textures: Record<string, TextureDef>;
+  renderEnv: RenderEnvironment;
   label: string;
 }
 
@@ -406,6 +410,10 @@ export class DrawingDocument {
   /** Styles de cote nommés et style courant (les nouvelles cotes le prennent). */
   dimStyles: Record<string, DimStyleDef> = { Standard: { name: 'Standard' } };
   currentDimStyle = 'Standard';
+  /** Rendu réaliste : sources de lumière, images de texture, ambiance. */
+  lights: LightDef[] = [];
+  textures: Record<string, TextureDef> = {};
+  renderEnv: RenderEnvironment = { ...DEFAULT_RENDER_ENV };
 
   readonly sysvars = {
     CIRCLERAD: 0,
@@ -467,7 +475,7 @@ export class DrawingDocument {
   }
 
   private snapshot(label: string): Snapshot {
-    return { entities: [...this.entities.values()], constraints: [...this.constraints], joints: this.joints, sheets: this.sheets, underlays: this.underlays, parameters: this.parameters, label };
+    return { entities: [...this.entities.values()], constraints: [...this.constraints], joints: this.joints, sheets: this.sheets, underlays: this.underlays, parameters: this.parameters, lights: this.lights, textures: this.textures, renderEnv: this.renderEnv, label };
   }
 
   private pushUndo(label: string): void {
@@ -501,6 +509,10 @@ export class DrawingDocument {
     this.joints = s.joints;
     this.sheets = s.sheets;
     this.underlays = s.underlays;
+    if (s.lights !== this.lights || s.textures !== this.textures || s.renderEnv !== this.renderEnv) this.renderVersion++;
+    this.lights = s.lights;
+    this.textures = s.textures;
+    this.renderEnv = s.renderEnv;
     if (s.parameters !== this.parameters) this.paramsVersion++;
     this.parameters = s.parameters;
     for (const h of before) if (!this.entities.has(h)) this.pendingChange.removed.add(h);
@@ -815,6 +827,34 @@ export class DrawingDocument {
     });
   }
 
+  // --- Rendu réaliste ------------------------------------------------------------
+
+  /** Remplace les lumières et/ou l'ambiance (une étape d'annulation). */
+  setRender(patch: { lights?: LightDef[]; env?: RenderEnvironment }, label = 'Lumières'): void {
+    this.touch(label);
+    if (patch.lights) this.lights = patch.lights;
+    if (patch.env) this.renderEnv = patch.env;
+    this.renderVersion++;
+    if (!this.openTx) this.emit();
+  }
+
+  /** Incrémenté quand les lumières, l'ambiance ou les textures changent. */
+  renderVersion = 0;
+
+  addTexture(def: TextureDef, label = 'Texture'): void {
+    this.touch(label);
+    this.textures = { ...this.textures, [def.id]: def };
+    this.renderVersion++;
+    if (!this.openTx) this.emit();
+  }
+
+  /** Textures que plus aucun solide n'utilise (oubliées à l'enregistrement). */
+  usedTextures(): Record<string, TextureDef> {
+    const used = new Set<string>();
+    for (const e of this.entities.values()) if (e.type === '3DSOLID' && e.texture) used.add(e.texture.ref);
+    return Object.fromEntries(Object.entries(this.textures).filter(([id]) => used.has(id)));
+  }
+
   // --- Calques -----------------------------------------------------------------
 
   layer(name: string): LayerDef | undefined {
@@ -992,6 +1032,9 @@ export class DrawingDocument {
     activeSection?: string | null;
     dimStyles?: Record<string, DimStyleDef>;
     currentDimStyle?: string;
+    lights?: LightDef[];
+    textures?: Record<string, TextureDef>;
+    renderEnv?: RenderEnvironment;
   }): void {
     const before = [...this.entities.keys()];
     this.entities = new Map(data.entities.map((e) => [e.handle, e]));
@@ -1002,6 +1045,10 @@ export class DrawingDocument {
     this.layerStates = data.layerStates ?? {};
     this.parameters = data.parameters ?? {};
     this.underlays = data.underlays ?? {};
+    this.lights = data.lights ?? [];
+    this.textures = data.textures ?? {};
+    this.renderEnv = data.renderEnv ?? { ...DEFAULT_RENDER_ENV };
+    this.renderVersion++;
     this.joints = (data.joints ?? []).filter((j) => j.parts.some((p) => this.entities.has(p)));
     this.nextJoint = this.joints.reduce((m, j) => Math.max(m, parseInt(j.id.slice(1)) || 0), 0) + 1;
     this.sheets = data.sheets ?? [];

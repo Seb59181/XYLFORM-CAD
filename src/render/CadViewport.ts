@@ -14,6 +14,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TECH_BACKGROUND } from './technical';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { DEFAULT_RENDER_ENV, pointIntensity, type EnvironmentKind, type LightDef, type RenderEnvironment } from '../core/render';
 import { AdaptiveGrid } from './AdaptiveGrid';
 import { UcsGizmo, type AxisName } from './UcsGizmo';
 
@@ -81,6 +87,15 @@ export class CadViewport {
   private readonly ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.32 }));
   private readonly sceneBox = new THREE.Box3();
   private envMap: THREE.Texture | null = null;
+  /** Style Photoréaliste : environnement choisi, lumières du dessin, occlusion ambiante. */
+  private photo = false;
+  private renderEnv: RenderEnvironment = { ...DEFAULT_RENDER_ENV };
+  private readonly userLights = new THREE.Group();
+  private readonly envMaps = new Map<EnvironmentKind, THREE.Texture>();
+  private readonly hemi = new THREE.HemisphereLight(0xdfe8f5, 0x3b3328, 0.75);
+  private readonly keyLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  private readonly fillLight = new THREE.DirectionalLight(0xb8c7ff, 0.25);
+  private composer: { composer: EffectComposer; ao: AoPass; cam: THREE.Camera; w: number; h: number } | null = null;
   private readonly clipBox = new THREE.Box3();
   private readonly clipBox2 = new THREE.Box3();
   private readonly clipSphere = new THREE.Sphere();
@@ -206,7 +221,7 @@ export class CadViewport {
 
   private setupLighting(): void {
     // 1. Ciel froid / sol chaud : donne immédiatement le sens haut/bas des volumes.
-    this.scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x3b3328, 0.75));
+    this.scene.add(this.hemi);
 
     // 2. Lampe frontale attachée à la caméra, légèrement décalée en haut à gauche :
     //    toute face vue est éclairée, quelle que soit l'orbite (comportement des modeleurs CAO).
@@ -217,11 +232,9 @@ export class CadViewport {
     this.scene.add(this.perspective, this.ortho);
 
     // 3. Deux lumières fixes faibles pour séparer les faces parallèles au regard.
-    const key = new THREE.DirectionalLight(0xffffff, 0.5);
-    key.position.set(1, -2, 3);
-    const fill = new THREE.DirectionalLight(0xb8c7ff, 0.25);
-    fill.position.set(-2, 1, -1);
-    this.scene.add(key, fill);
+    this.keyLight.position.set(1, -2, 3);
+    this.fillLight.position.set(-2, 1, -1);
+    this.scene.add(this.keyLight, this.fillLight);
 
     // 4. Environnement neutre pour les réflexions des matériaux métalliques (acier, alu).
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -244,6 +257,122 @@ export class CadViewport {
     this.ground.renderOrder = -1;
     this.scene.add(this.sun, this.sun.target, this.ground);
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // 6. Lumières posées dans le dessin (styles Rendu et Photoréaliste)
+    this.userLights.name = 'UserLights';
+    this.userLights.visible = false;
+    this.scene.add(this.userLights);
+    this.disposers.push(() => {
+      for (const t of this.envMaps.values()) if (t !== this.envMap) t.dispose();
+      this.composer?.composer.dispose();
+    });
+  }
+
+  /**
+   * Carte d'environnement (reflets et éclairage indirect) d'une ambiance, construite à la
+   * première utilisation. Les scènes sont en Y vers le haut : elles sont tournées vers Z au rendu.
+   */
+  private environmentMap(kind: EnvironmentKind): THREE.Texture {
+    const known = this.envMaps.get(kind);
+    if (known) return known;
+    let tex: THREE.Texture;
+    if (kind === 'studio' && this.envMap) tex = this.envMap;
+    else {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const scene = environmentScene(kind);
+      tex = pmrem.fromScene(scene, kind === 'outdoor' ? 0 : 0.04, 0.1, 100).texture;
+      pmrem.dispose();
+      scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) {
+          m.geometry.dispose();
+          (m.material as THREE.Material).dispose();
+        }
+      });
+    }
+    this.envMaps.set(kind, tex);
+    return tex;
+  }
+
+  /** Lumières, ambiance et fond selon le style (Rendu, Photoréaliste, autres). */
+  private applyEnvironment(): void {
+    const on = this.renderMode, photo = this.photo, env = this.renderEnv;
+    const anyUser = this.userLights.children.some((l) => (l as THREE.Light).isLight);
+    if (photo) {
+      const tex = this.environmentMap(env.environment);
+      const base = env.environment === 'night' ? 0.12 : env.environment === 'outdoor' ? 0.8 : 1;
+      this.scene.environment = tex;
+      this.scene.environmentRotation.set(Math.PI / 2, 0, 0);
+      this.scene.environmentIntensity = (base * env.envIntensity) / 100;
+      this.renderer.toneMappingExposure = env.exposure / 100;
+      this.headlight.intensity = env.environment === 'night' ? 0 : 0.12;
+      this.hemi.intensity = env.environment === 'night' ? 0.02 : 0.15;
+      this.keyLight.intensity = this.fillLight.intensity = 0;
+      this.sun.visible = env.defaultLights || !anyUser;
+      this.sun.color.set(env.environment === 'workshop' ? 0xffd2a1 : env.environment === 'night' ? 0x9db4ff : 0xfff4e6);
+      this.sun.intensity = env.environment === 'night' ? 0.35 : 2.6;
+      this.ground.visible = env.ground;
+      (this.ground.material as THREE.ShadowMaterial).opacity = 0.45;
+      if (!this.technical) {
+        if (env.background === 'environment') {
+          this.scene.background = tex;
+          this.scene.backgroundBlurriness = 0.45;
+          this.scene.backgroundIntensity = Math.max(0.05, this.scene.environmentIntensity);
+          this.scene.backgroundRotation.set(Math.PI / 2, 0, 0);
+        } else this.scene.background = new THREE.Color(this.background);
+      }
+    } else {
+      this.scene.environment = this.envMap;
+      this.scene.environmentRotation.set(0, 0, 0);
+      this.scene.environmentIntensity = on ? 0.85 : 0.35;
+      this.renderer.toneMappingExposure = on ? 1.05 : 1;
+      this.headlight.intensity = on ? 0.55 : 1.35;
+      this.hemi.intensity = 0.75;
+      this.keyLight.intensity = 0.5;
+      this.fillLight.intensity = 0.25;
+      this.sun.visible = on;
+      this.sun.color.set(0xfff4e6);
+      this.sun.intensity = 2.4;
+      this.ground.visible = on;
+      (this.ground.material as THREE.ShadowMaterial).opacity = 0.32;
+      if (!this.technical) this.scene.background = new THREE.Color(this.background);
+    }
+    this.userLights.visible = on;
+    this.requestRender();
+  }
+
+  /** Lumières du dessin et ambiance (appelé à chaque changement du document). */
+  setRenderSetup(lights: LightDef[], env: RenderEnvironment): void {
+    for (const o of [...this.userLights.children]) {
+      const l = o as THREE.SpotLight;
+      l.shadow?.map?.dispose();
+      l.dispose?.();
+    }
+    this.userLights.clear();
+    for (const d of lights) {
+      if (!d.on) continue;
+      const color = new THREE.Color(d.color);
+      let l: THREE.PointLight | THREE.SpotLight | THREE.DirectionalLight;
+      if (d.kind === 'point') l = new THREE.PointLight(color, 0, 0, 2);
+      else if (d.kind === 'spot') l = new THREE.SpotLight(color, 0, 0, THREE.MathUtils.degToRad(d.angle ?? 30), d.penumbra ?? 0.3, 2);
+      else l = new THREE.DirectionalLight(color, 0);
+      l.position.set(d.position.x, d.position.y, d.position.z);
+      l.castShadow = d.shadows;
+      if (d.shadows) {
+        l.shadow.mapSize.set(d.kind === 'point' ? 1024 : 2048, d.kind === 'point' ? 1024 : 2048);
+        l.shadow.bias = -0.0004;
+        l.shadow.normalBias = 0.02;
+        l.shadow.radius = 4;
+      }
+      l.userData.def = d;
+      this.userLights.add(l);
+      if (!(l instanceof THREE.PointLight)) {
+        l.target.position.set(d.target.x, d.target.y, d.target.z);
+        this.userLights.add(l.target);
+      }
+    }
+    this.renderEnv = env;
+    this.applyEnvironment();
   }
 
   /** Style visuel « Rendu » : ombres portées, reflets plus marqués, tonalité photographique. */
@@ -251,7 +380,8 @@ export class CadViewport {
   setTechnical(on: boolean): void {
     if (this.technical === on) return;
     this.technical = on;
-    this.scene.background = new THREE.Color(on ? TECH_BACKGROUND : this.background);
+    if (on) this.scene.background = new THREE.Color(TECH_BACKGROUND);
+    else this.applyEnvironment();
     const u = this.grid.material.uniforms;
     u.uMinorColor!.value.set(on ? 0xdfe2e6 : 0x3a4350);
     u.uMajorColor!.value.set(on ? 0xbfc4ca : 0x56616f);
@@ -260,16 +390,18 @@ export class CadViewport {
 
   private technical = false;
 
-  setRenderMode(on: boolean): void {
-    if (on === this.renderMode) return;
+  setRenderMode(on: boolean, photo = false): void {
+    photo = on && photo;
+    if (on === this.renderMode && photo === this.photo) return;
     this.renderMode = on;
+    this.photo = photo;
     this.renderer.shadowMap.enabled = on;
     this.renderer.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = on ? 1.05 : 1;
-    this.scene.environmentIntensity = on ? 0.85 : 0.35;
-    this.headlight.intensity = on ? 0.55 : 1.35;
-    this.sun.visible = this.ground.visible = on;
-    this.requestRender();
+    this.applyEnvironment();
+  }
+
+  get photoMode(): boolean {
+    return this.photo;
   }
 
   /** Soleil et sol cadrés sur le modèle (appelé avant chaque image en mode Rendu). */
@@ -285,7 +417,7 @@ export class CadViewport {
       this.ground.visible = false;
       return;
     }
-    this.ground.visible = true;
+    this.ground.visible = !this.photo || this.renderEnv.ground;
     const c = box.getCenter(new THREE.Vector3());
     const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1e-3);
     // soleil à ~70° de la caméra et haut (55°) : ombres visibles, portées vers la droite
@@ -304,7 +436,40 @@ export class CadViewport {
     cam.updateProjectionMatrix();
     // sol juste sous le modèle, assez grand pour recevoir l'ombre allongée
     this.ground.position.set(c.x, c.y, box.min.z - r * 1e-4);
-    this.ground.scale.set(r * 12, r * 12, 1);
+    this.ground.scale.set(r * (this.photo ? 40 : 12), r * (this.photo ? 40 : 12), 1);
+    this.fitUserLights(c, r);
+  }
+
+  /**
+   * Lumières du dessin : intensité ramenée au centre du modèle (100 % = éclairage de référence,
+   * décroissance physique au-delà), caméras d'ombre cadrées sur le modèle.
+   */
+  private fitUserLights(c: THREE.Vector3, r: number): void {
+    for (const o of this.userLights.children) {
+      const d = o.userData.def as LightDef | undefined;
+      if (!d) continue;
+      if (o instanceof THREE.DirectionalLight) {
+        o.intensity = (d.intensity / 100) * 2.4;
+        const dir = new THREE.Vector3(d.position.x - d.target.x, d.position.y - d.target.y, d.position.z - d.target.z);
+        if (dir.lengthSq() < 1e-12) dir.set(0, 0, 1);
+        o.position.copy(c).addScaledVector(dir.normalize(), r * 4);
+        o.target.position.copy(c);
+        o.target.updateMatrixWorld();
+        const cam = o.shadow.camera;
+        cam.left = cam.bottom = -r * 1.6;
+        cam.right = cam.top = r * 1.6;
+        cam.near = r * 0.5;
+        cam.far = r * 8;
+        cam.updateProjectionMatrix();
+      } else if (o instanceof THREE.PointLight || o instanceof THREE.SpotLight) {
+        const dist = o.position.distanceTo(c);
+        o.intensity = pointIntensity(d.intensity, dist);
+        const cam = o.shadow.camera as THREE.PerspectiveCamera;
+        cam.near = Math.max(1e-3, (dist - r * 1.5) * 0.5, dist * 1e-3);
+        cam.far = dist + r * 6;
+        cam.updateProjectionMatrix();
+      }
+    }
   }
 
   /** Matériau par défaut des solides : mat, légèrement satiné, arêtes nettes. */
@@ -696,9 +861,56 @@ export class CadViewport {
     this.ucsIcon.matrix.copy(this.ucs).multiply(new THREE.Matrix4().makeScale(60 * worldPerPixel, 60 * worldPerPixel, 60 * worldPerPixel));
     this.ucsIcon.matrixAutoUpdate = false;
     this.ucsIcon.matrixWorldNeedsUpdate = true;
-    this.renderer.render(this.scene, cam);
+    this.drawScene(cam);
     if (!this.mode2d) this.gizmo.render(this.renderer, cam, this.ucs);
     for (const fn of this.afterRender) fn();
+  }
+
+  /** Image de la scène : directe, ou avec occlusion ambiante (style Photoréaliste). */
+  private drawScene(cam: THREE.Camera): void {
+    // style Photoréaliste : pas de grille (le sol reçoit les ombres)
+    const grid = this.grid.visible;
+    if (this.photo) this.grid.visible = false;
+    try {
+      this.drawSceneInner(cam);
+    } finally {
+      this.grid.visible = grid;
+    }
+  }
+
+  private drawSceneInner(cam: THREE.Camera): void {
+    if (!this.photo || !this.renderEnv.ambientOcclusion) {
+      this.renderer.render(this.scene, cam);
+      return;
+    }
+    try {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      let c = this.composer;
+      if (!c || c.cam !== cam || c.w !== size.x || c.h !== size.y) {
+        c?.composer.dispose();
+        c?.ao.dispose();
+        const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4, stencilBuffer: true });
+        const composer = new EffectComposer(this.renderer, rt);
+        composer.setPixelRatio(1);
+        composer.setSize(size.x, size.y);
+        composer.addPass(new RenderPass(this.scene, cam));
+        const ao = new AoPass(this.scene, cam, size.x, size.y);
+        ao.keep = new Set([this.modelRoot, this.ground, this.capGroup]);
+        composer.addPass(ao);
+        composer.addPass(new OutputPass());
+        c = this.composer = { composer, ao, cam, w: size.x, h: size.y };
+      }
+      // rayon d'occlusion proportionnel au modèle (pièces de 1 mm comme de 10 m)
+      const box = this.sceneBox;
+      const r = box.isEmpty() ? 50 : Math.max(box.getSize(this.clipV).length() / 2, 1e-3);
+      c.ao.updateGtaoMaterial({ radius: r * 0.12, thickness: r * 0.12, distanceExponent: 1.5, distanceFallOff: 1, scale: 1.2, samples: 16 });
+      c.ao.blendIntensity = 0.9;
+      c.composer.render();
+    } catch (e) {
+      console.warn('Occlusion ambiante indisponible', e);
+      this.renderEnv = { ...this.renderEnv, ambientOcclusion: false };
+      this.renderer.render(this.scene, cam);
+    }
   }
 
   /**
@@ -892,7 +1104,7 @@ export class CadViewport {
    * les bords), sans grille, icône SCU, sélection ni poignées. `background` : couleur CSS,
    * 'studio' (dégradé clair) ou null (transparent).
    */
-  async renderImage(width: number, height: number, background: string | 'studio' | null, supersample = 2): Promise<Blob | null> {
+  async renderImage(width: number, height: number, background: string | 'studio' | 'environment' | null, supersample = 2): Promise<Blob | null> {
     const r = this.renderer;
     const ss = Math.max(1, Math.min(supersample, 8192 / Math.max(width, height), r.capabilities.maxTextureSize / Math.max(width, height)));
     const W = Math.round(width * ss), H = Math.round(height * ss);
@@ -901,7 +1113,7 @@ export class CadViewport {
     const oldBg = this.scene.background;
     const oldClear = r.getClearAlpha();
     const hidden: THREE.Object3D[] = [];
-    const keep = new Set<THREE.Object3D>([this.modelRoot, this.sun, this.sun.target, this.ground, this.perspective, this.ortho, this.capGroup]);
+    const keep = new Set<THREE.Object3D>([this.modelRoot, this.sun, this.sun.target, this.ground, this.perspective, this.ortho, this.capGroup, this.userLights]);
     for (const o of this.scene.children) if (o.visible && !keep.has(o) && !(o as THREE.Light).isLight) (o.visible = false), hidden.push(o);
     const persp = { aspect: this.perspective.aspect };
     const ortho = { left: this.ortho.left, right: this.ortho.right };
@@ -931,12 +1143,12 @@ export class CadViewport {
         studio = new THREE.CanvasTexture(c);
         studio.colorSpace = THREE.SRGBColorSpace;
         this.scene.background = studio;
-      } else this.scene.background = new THREE.Color(background);
+      } else if (background !== 'environment') this.scene.background = new THREE.Color(background);
       if (this.renderMode) this.fitSun();
       for (const fn of this.beforeRender) fn();
       this.updateClipping();
       this.applySection();
-      r.render(this.scene, this.camera);
+      this.drawScene(this.camera);
       // réduction (lissage) dans un canevas 2D
       const out = document.createElement('canvas');
       out.width = width;
@@ -1065,4 +1277,78 @@ export class CadViewport {
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+}
+
+/**
+ * Occlusion ambiante : seuls les solides du modèle (et le sol) comptent ; grille, courbes,
+ * repères et aides visuelles sont masqués pendant le calcul des normales et de la profondeur.
+ */
+class AoPass extends GTAOPass {
+  keep = new Set<THREE.Object3D>();
+  private hiddenAo: THREE.Object3D[] = [];
+
+  _overrideVisibility(): void {
+    const scene = this.scene as THREE.Scene;
+    for (const o of scene.children) if (o.visible && !this.keep.has(o)) (o.visible = false), this.hiddenAo.push(o);
+    scene.traverseVisible((o) => {
+      const x = o as THREE.Object3D & { isPoints?: boolean; isLine?: boolean; isLineSegments2?: boolean; isSprite?: boolean };
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if (x.isPoints || x.isLine || x.isLineSegments2 || x.isSprite || (m && !Array.isArray(m) && m.transparent && m.opacity < 0.5 && !(m as THREE.ShadowMaterial).isShadowMaterial)) {
+        if (o.visible) (o.visible = false), this.hiddenAo.push(o);
+      }
+    });
+  }
+
+  _restoreVisibility(): void {
+    for (const o of this.hiddenAo) o.visible = true;
+    this.hiddenAo.length = 0;
+  }
+}
+
+/** Scènes d'ambiance (Y vers le haut) dont on tire les cartes d'environnement. */
+function environmentScene(kind: EnvironmentKind): THREE.Scene {
+  const scene = new THREE.Scene();
+  const basic = (color: THREE.ColorRepresentation, k = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.BackSide });
+  const panel = (w: number, h: number, color: THREE.ColorRepresentation, k: number, pos: [number, number, number], rot: [number, number, number] = [0, 0, 0]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.DoubleSide }));
+    m.position.set(...pos);
+    m.rotation.set(...rot);
+    scene.add(m);
+  };
+  if (kind === 'outdoor') {
+    const sky = new Sky();
+    sky.scale.setScalar(80);
+    const u = sky.material.uniforms;
+    u.turbidity!.value = 3;
+    u.rayleigh!.value = 1.2;
+    u.mieCoefficient!.value = 0.004;
+    u.mieDirectionalG!.value = 0.8;
+    u.up!.value.set(0, 1, 0);
+    const el = THREE.MathUtils.degToRad(35), az = THREE.MathUtils.degToRad(-60);
+    u.sunPosition!.value.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+    scene.add(sky);
+    // sol : herbe sèche et gravier, plus clair vers l'horizon
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x6f6a58).multiplyScalar(0.55), side: THREE.DoubleSide }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -2;
+    scene.add(ground);
+    return scene;
+  }
+  if (kind === 'workshop') {
+    const room = new THREE.Mesh(new THREE.BoxGeometry(24, 9, 24), basic(0x5d4c3c, 0.9));
+    room.position.y = 3;
+    scene.add(room);
+    for (const x of [-6, 0, 6]) panel(1.2, 7, 0xffd6a0, 6, [x, 7.4, 0], [Math.PI / 2, 0, 0]);
+    panel(8, 4, 0xdfeaff, 3, [0, 3.5, -11.9]);
+    panel(6, 3, 0xffe2bf, 1.2, [11.9, 2.5, 0], [0, Math.PI / 2, 0]);
+    return scene;
+  }
+  if (kind === 'night') {
+    const room = new THREE.Mesh(new THREE.BoxGeometry(30, 14, 30), basic(0x0b0f19, 1));
+    room.position.y = 4;
+    scene.add(room);
+    panel(10, 6, 0x6f86c4, 0.6, [0, 9, -14.9]);
+    return scene;
+  }
+  return scene;
 }

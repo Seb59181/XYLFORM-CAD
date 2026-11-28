@@ -6,6 +6,7 @@
 import { ScriptRunner, type ScriptReport } from './script/ScriptRunner';
 import { CommandCancelled, CommandProcessor, CommandRegistry, ask, type CommandContext, type CommandDefinition, type PromptSpec } from '../core/commands';
 import type { Vec3 } from '../core/commands/types';
+import type { LightDef, RenderEnvironment } from '../core/render';
 import { DrawingDocument, featureId, placeHistory, placePrimitive, type DocumentChange, type Entity, type Feature, type Joint, type NewEntity, type PrimitiveDef, type PrimitiveOp } from '../core/document/Document';
 import { hasExpressions, hasRealThread, refreshExpressions, replayHistory } from './history';
 import { itemNumber } from './drawingExtra';
@@ -20,7 +21,7 @@ import type { StandardView, Workspace } from '../render/CadViewport';
 import type { SaveHandle } from '../io/fileAccess';
 import type { Autosaver } from '../io/autosave';
 
-export type VisualStyle = 'realistic' | 'render' | 'shaded' | 'wireframe' | 'xray' | 'technical';
+export type VisualStyle = 'realistic' | 'render' | 'photo' | 'shaded' | 'wireframe' | 'xray' | 'technical';
 export type HostEvent = 'log' | 'prompt' | 'input' | 'settings' | 'selection' | 'kernel' | 'command' | 'cursor' | 'doc' | 'constraints' | 'tabs';
 
 /** Disposition des fenêtres de vue : une seule, deux (côte à côte / l'une sur l'autre), trois, quatre. */
@@ -191,7 +192,9 @@ export interface ViewportApi {
   readonly section: { origin: Vec3; normal: Vec3 } | null;
   screenshot(): Promise<Blob | null>;
   /** Image de rendu hors écran (fond : couleur CSS, 'studio' ou null = transparent). */
-  renderImage(width: number, height: number, background: string | 'studio' | null, supersample?: number): Promise<Blob | null>;
+  renderImage(width: number, height: number, background: string | 'studio' | 'environment' | null, supersample?: number): Promise<Blob | null>;
+  /** Aperçu en direct des lumières et de l'ambiance (sans modifier le dessin) ; null = revenir au dessin. */
+  previewRender(setup: { lights: LightDef[]; env: RenderEnvironment } | null): void;
   /** Taille du viewport en pixels. */
   viewSize(): { w: number; h: number };
   /** Taille d'un pixel en unités du dessin (à la cible de la caméra). */
@@ -252,6 +255,8 @@ export interface UiApi {
   choose(message: string, title: string, buttons: string[]): Promise<number>;
   /** Fenêtre de la connexion IA (serveur MCP). */
   mcpPanel(): void;
+  /** Fenêtre « Lumières et ambiance » (aperçu en direct) : réglages validés, ou null si annulée. */
+  renderPanel(initial: { lights: LightDef[]; env: RenderEnvironment }): Promise<{ lights: LightDef[]; env: RenderEnvironment } | null>;
   /** Fenêtre des scripts de commandes : texte à exécuter, ou null si fermée. */
   scriptEditor(state: ScriptEditorState): Promise<ScriptEditorResult | null>;
 }
@@ -275,7 +280,8 @@ export type FormValues = Record<string, string | number | boolean>;
 export interface FormField {
   key: string;
   label: string;
-  type: 'number' | 'text' | 'select' | 'checkbox';
+  /** `color` : sélecteur de couleur (#RRGGBB), `options` = teintes proposées. */
+  type: 'number' | 'text' | 'select' | 'checkbox' | 'color';
   value: string | number | boolean;
   options?: { value: string; label: string }[];
   min?: number;
@@ -368,6 +374,7 @@ const fallbackUi: UiApi = {
   choose: async () => 0,
   scriptEditor: async () => null,
   mcpPanel: () => undefined,
+  renderPanel: async () => null,
 };
 
 let tabCounter = 0;

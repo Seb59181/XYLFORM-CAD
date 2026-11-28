@@ -24,10 +24,17 @@ import { fadeColor, underlayEntities, underlayPickData } from '../core/entities/
 import type { AppHost } from '../app/AppHost';
 import { constraintDisplay } from '../app/commands/constraints';
 import { materialById } from '../core/materials';
+import { boxUVs, type LightDef, type TextureDef } from '../core/render';
 import { dashPolys, patternOf } from '../core/linetypes';
 import { CadViewport } from './CadViewport';
 
 type Solid3D = Extract<Entity, { type: '3DSOLID' }>;
+
+/** Styles à ombres portées : Rendu et Photoréaliste. */
+export const isRenderStyle = (s: string): boolean => s === 'render' || s === 'photo';
+
+/** Matériau d'un solide texturé sans matériau choisi : surface satinée. */
+const DEFAULT_TEXTURED: import('../core/materials').RenderMaterial = { id: 'textured', label: 'Texture', group: 'Autres', metalness: 0, roughness: 0.55 };
 type Underlay = Extract<Entity, { type: 'UNDERLAY' }>;
 
 /** Contenu d'un fond de plan vectoriel dans le repère du dessin (désignation, accrochage). */
@@ -121,6 +128,11 @@ export class SceneSync {
   /** Images décodées des fonds de plan (par octets source et mode gris). */
   private readonly bitmaps = new WeakMap<Uint8Array, Promise<ImageBitmap>>();
   private style = 0;
+  /** Images de texture décodées (par définition : deux dessins peuvent avoir chacun leur « T1 »). */
+  private readonly texCache = new WeakMap<TextureDef, { tex: THREE.Texture; serial: number }>();
+  private texSerial = 0;
+  private renderKey: unknown[] = [];
+  private readonly lightGroup = new THREE.Group();
 
   readonly overlay = new THREE.Group();
   private readonly selectionGroup = new THREE.Group();
@@ -144,7 +156,7 @@ export class SceneSync {
     private readonly vp: CadViewport,
   ) {
     this.overlay.name = 'Overlay';
-    this.overlay.add(this.selectionGroup, this.hoverGroup, this.subGroup, this.hoverSubGroup, this.constraintGroup, this.previewGroup, this.gripGroup);
+    this.overlay.add(this.lightGroup, this.selectionGroup, this.hoverGroup, this.subGroup, this.hoverSubGroup, this.constraintGroup, this.previewGroup, this.gripGroup);
     this.selectionGroup.renderOrder = 5;
     this.hoverGroup.renderOrder = 6;
     this.previewGroup.renderOrder = 8;
@@ -157,10 +169,13 @@ export class SceneSync {
       app.on('selection', () => this.updateHighlights()),
       app.on('command', () => this.updateGrips()),
       app.on('constraints', () => this.updateConstraints()),
-      app.on('settings', () => this.updateConstraints()),
+      app.on('settings', () => {
+        this.updateConstraints();
+        this.syncRenderSetup();
+      }),
     );
-    vp.setRenderMode(app.settings.visualStyle === 'render');
     vp.setTechnical(app.settings.visualStyle === 'technical');
+    vp.setRenderMode(isRenderStyle(app.settings.visualStyle), app.settings.visualStyle === 'photo');
     this.sync();
   }
 
@@ -184,6 +199,16 @@ export class SceneSync {
     }
     if (this.outline) this.outline.uniforms.uResolution!.value.set(w * this.vp.renderer.getPixelRatio(), h * this.vp.renderer.getPixelRatio());
     for (const s of this.screenSprites) s.sprite.scale.set(s.px * s.aspect * k, s.px * k, 1);
+    for (const g of this.lightGroup.children)
+      for (const o of g.children) {
+        if (o.userData.screenPx) o.scale.setScalar(o.userData.screenPx * k);
+        if (o.userData.dashed) {
+          const lm = (o as THREE.Line).material as THREE.LineDashedMaterial;
+          lm.dashSize = 8 * k;
+          lm.gapSize = 6 * k;
+          (o as THREE.Line).computeLineDistances();
+        }
+      }
   };
 
   // =========================================================================
@@ -212,15 +237,18 @@ export class SceneSync {
     return m;
   }
 
-  private solidMat(color: string, surface: boolean, material?: string): THREE.Material {
+  private solidMat(color: string, surface: boolean, material?: string, texture?: TextureDef): THREE.Material {
     const style = this.app.settings.visualStyle;
-    const lib = style === 'realistic' || style === 'render' ? materialById(material) : undefined;
-    const key = `${color}|${style}|${surface ? 1 : 0}|${lib?.id ?? ''}`;
+    const rich = style === 'realistic' || isRenderStyle(style);
+    const lib = rich ? (materialById(material) ?? (texture ? DEFAULT_TEXTURED : undefined)) : undefined;
+    const tex = rich && texture ? this.textureOf(texture) : undefined;
+    const key = `${color}|${style}|${surface ? 1 : 0}|${lib?.id ?? ''}|${tex?.serial ?? ''}`;
     let m = this.meshMats.get(key);
     if (!m && lib) {
-      // matériau de la bibliothèque : métal, plastique, verre…
+      // matériau de la bibliothèque : métal, plastique, verre… (texture : l'image donne la couleur)
       const pm = new THREE.MeshPhysicalMaterial({
-        color: lib.color ?? color,
+        color: tex ? '#ffffff' : (lib.color ?? color),
+        map: tex?.tex ?? null,
         metalness: lib.metalness,
         roughness: lib.roughness,
         clearcoat: lib.clearcoat ?? 0,
@@ -256,6 +284,85 @@ export class SceneSync {
     return m;
   }
 
+  /** Texture Three.js d'une image du dessin (décodée en tâche de fond, répétée en mosaïque). */
+  private textureOf(def: TextureDef): { tex: THREE.Texture; serial: number } {
+    let t = this.texCache.get(def);
+    if (t) return t;
+    const tex = new THREE.Texture();
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = Math.min(8, this.vp.renderer.capabilities.getMaxAnisotropy());
+    t = { tex, serial: ++this.texSerial };
+    this.texCache.set(def, t);
+    const max = Math.min(4096, this.vp.renderer.capabilities.maxTextureSize);
+    const blob = new Blob([def.data as Uint8Array<ArrayBuffer>], { type: def.mime });
+    void createImageBitmap(blob)
+      .then(async (full) => {
+        const k = Math.min(1, max / Math.max(full.width, full.height));
+        if (k >= 1) return full;
+        full.close();
+        return createImageBitmap(blob, { resizeWidth: Math.round(full.width * k), resizeHeight: Math.round(full.height * k), resizeQuality: 'high' });
+      })
+      .then((img) => {
+        tex.image = img;
+        tex.flipY = true;
+        tex.needsUpdate = true;
+        this.vp.requestRender();
+      })
+      .catch(() => this.app.log(`Texture « ${def.name} » : image illisible.`));
+    this.disposers.push(() => tex.dispose());
+    return t;
+  }
+
+  /** Lumières et ambiance du dessin vers la vue (+ repères des lampes dans l'espace 3D). */
+  private syncRenderSetup(): void {
+    const doc = this.app.doc;
+    const key = [doc, doc.lights, doc.renderEnv, this.app.settings.workspace, this.app.settings.visualStyle];
+    if (key.length === this.renderKey.length && key.every((k, i) => k === this.renderKey[i])) return;
+    this.renderKey = key;
+    this.vp.setRenderSetup(doc.lights, doc.renderEnv);
+    this.drawLightMarkers(doc.lights);
+  }
+
+  /** Aperçu en direct des réglages de lumière (fenêtre Lumières et ambiance), sans annulation. */
+  previewRender(lights: LightDef[], env: import('../core/render').RenderEnvironment): void {
+    this.renderKey = [];
+    this.vp.setRenderSetup(lights, env);
+    this.drawLightMarkers(lights);
+  }
+
+  private drawLightMarkers(lights: LightDef[]): void {
+    for (const o of [...this.lightGroup.children]) {
+      o.traverse((x) => {
+        const m = x as THREE.Mesh;
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) (m.material as THREE.Material).dispose();
+      });
+    }
+    this.lightGroup.clear();
+    const style = this.app.settings.visualStyle;
+    if (this.app.settings.workspace !== '3d' || style === 'technical') return;
+    for (const l of lights) {
+      const g = new THREE.Group();
+      g.name = `Lumière ${l.name}`;
+      const color = new THREE.Color(l.on ? l.color : '#6b7280');
+      const bulb = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color, wireframe: !l.on, toneMapped: false, depthTest: false, transparent: true, opacity: 0.95 }));
+      bulb.position.set(l.position.x, l.position.y, l.position.z);
+      bulb.renderOrder = 7;
+      bulb.userData.screenPx = 9;
+      g.add(bulb);
+      if (l.kind !== 'point') {
+        const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(l.position.x, l.position.y, l.position.z), new THREE.Vector3(l.target.x, l.target.y, l.target.z)]);
+        const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color, dashSize: 1, gapSize: 1, toneMapped: false, transparent: true, opacity: 0.7, depthTest: false }));
+        line.renderOrder = 7;
+        line.userData.dashed = true;
+        g.add(line);
+      }
+      this.lightGroup.add(g);
+    }
+    this.vp.requestRender();
+  }
+
   private hiddenMat: LineMaterial | null = null;
   private outline: THREE.ShaderMaterial | null = null;
 
@@ -288,8 +395,9 @@ export class SceneSync {
   /** Reconstruit tout (changement de style visuel, d'épaisseurs…). */
   rebuild(): void {
     this.style++;
-    this.vp.setRenderMode(this.app.settings.visualStyle === 'render');
     this.vp.setTechnical(this.app.settings.visualStyle === 'technical');
+    this.vp.setRenderMode(isRenderStyle(this.app.settings.visualStyle), this.app.settings.visualStyle === 'photo');
+    this.renderKey = [];
     for (const m of this.meshMats.values()) m.dispose();
     this.meshMats.clear();
     this.sync();
@@ -298,6 +406,7 @@ export class SceneSync {
 
   sync(): void {
     const doc = this.app.doc;
+    this.syncRenderSetup();
     const seen = new Set<string>();
     for (const e of doc.all()) {
       seen.add(e.handle);
@@ -771,15 +880,20 @@ export class SceneSync {
     geo.setIndex(new THREE.BufferAttribute(d.indices, 1));
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, this.solidMat(color, d.solidCount === 0, e.material));
-    mesh.castShadow = mesh.receiveShadow = style === 'render';
+    const texDef = e.texture ? this.app.doc.textures[e.texture.ref] : undefined;
+    if (texDef && e.texture && (style === 'realistic' || isRenderStyle(style))) {
+      const n = geo.getAttribute('normal');
+      geo.setAttribute('uv', new THREE.BufferAttribute(boxUVs(d.positions, n.array, e.texture, texDef.width && texDef.height ? texDef.height / texDef.width : 1), 2));
+    }
+    const mesh = new THREE.Mesh(geo, this.solidMat(color, d.solidCount === 0, e.material, texDef));
+    mesh.castShadow = mesh.receiveShadow = isRenderStyle(style);
     mesh.userData.handle = e.handle;
     mesh.userData.closedSolid = d.solidCount > 0; // bouchage des coupes possible
     mesh.visible = style !== 'wireframe';
     g.add(mesh);
     g.userData.mesh = mesh;
     g.userData.solid = true; // concerné par l'analyse de coupe
-    if (style !== 'shaded' && style !== 'render') {
+    if (style !== 'shaded' && !isRenderStyle(style)) {
       const segs = solidEdges(d);
       if (segs.length) {
         const eg = new LineSegmentsGeometry();

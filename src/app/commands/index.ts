@@ -16,6 +16,7 @@ import { array3dCommands } from './arrays3d';
 import { drawingCommands } from './drawing';
 import { sheetMetalCommands } from './sheetmetal';
 import { renderCommands } from './render';
+import { painterCommands } from './painter';
 import { jointCommands } from './joints';
 import { measureCommands } from './measure';
 import { text3dCommands } from './text3d';
@@ -29,5 +30,5 @@ import { updateCommands } from './updates';
 import { scriptCommands } from './script';
 
 export function registerAll(registry: CommandRegistry): void {
-  for (const def of [...drawCommands, ...dimensionCommands, ...annotateCommands, ...guideCommands, ...modifyCommands, ...solidCommands, ...constraintCommands, ...utilityCommands, ...fileCommands, ...underlayCommands, ...tools3dCommands, ...sectionPlaneCommands, ...presentationCommands, ...selectCommands, ...measureCommands, ...text3dCommands, ...jointCommands, ...holeCommands, ...array3dCommands, ...renderCommands, ...drawingCommands, ...sheetCommands, ...blockCommands, ...sheetMetalCommands, ...interfaceCommands, ...updateCommands, ...scriptCommands]) registry.register(def);
+  for (const def of [...drawCommands, ...dimensionCommands, ...annotateCommands, ...guideCommands, ...modifyCommands, ...solidCommands, ...constraintCommands, ...utilityCommands, ...fileCommands, ...underlayCommands, ...tools3dCommands, ...sectionPlaneCommands, ...presentationCommands, ...selectCommands, ...measureCommands, ...text3dCommands, ...jointCommands, ...holeCommands, ...array3dCommands, ...renderCommands, ...painterCommands, ...drawingCommands, ...sheetCommands, ...blockCommands, ...sheetMetalCommands, ...interfaceCommands, ...updateCommands, ...scriptCommands]) registry.register(def);
 }

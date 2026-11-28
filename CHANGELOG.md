@@ -5,6 +5,21 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.4.0 — 27 novembre 2026
+
+Xylform CAD 1.4.0 : un mode de rendu photoréaliste, vos propres lumières, des textures sur les pièces, un pinceau de propriétés, et plus de travail perdu à la fermeture.
+
+- **Style visuel Photoréaliste** (onglet Vue › Rendu, ou menu du style en haut à gauche de la vue) : matériaux physiques (métaux, plastiques, verre, bois), ombres douces de toutes les lumières, **occlusion ambiante** (coins et creux assombris), éclairage d'environnement et reflets, fond d'environnement flou, sol qui reçoit les ombres, sans grille.
+  - Quatre **ambiances** : studio photo, extérieur (ciel et soleil), atelier (lumière chaude), nuit (seules vos lumières éclairent).
+  - **`RENDU`** propose maintenant Photoréaliste, Rendu ou Réaliste, et le fond d'environnement pour l'image PNG (jusqu'en 4K).
+- **Lumières** : **`LUMIERE`** pose une **ampoule** (ponctuelle), un **projecteur** (cône dirigé vers un point) ou un **soleil** (azimut et hauteur), avec sa **couleur** (teintes de 1900 K à 10 000 K proposées, ou couleur libre) et son **intensité** en % (100 % = éclairage de référence au centre du modèle, la lumière d'une ampoule diminue naturellement avec la distance). Les lampes sont repérées dans la vue 3D par un petit losange de leur couleur.
+- **Fenêtre Lumières et ambiance** (**`LUMIERES`**) : liste des lumières (allumer, éteindre, ajouter, supprimer), couleur, intensité, ouverture et flou du cône, position, point visé, ombres ; environnement, lumière ambiante, exposition, fond, occlusion ambiante, soleil par défaut, sol. **Chaque réglage s'affiche aussitôt** dans la vue, qui reste utilisable pendant les réglages (on peut tourner autour du modèle). OK enregistre le tout en une étape d'annulation ; Annuler revient à l'état d'avant.
+- **Textures** (**`TEXTURE`**) : plaquez une image PNG, JPEG, WebP, BMP ou GIF (bois, métal brossé, carbone, logo…) sur les faces des solides choisis. **Taille du motif en mm** (la hauteur suit les proportions de l'image), rotation et décalage ; l'image est projetée selon l'orientation de chaque face et répétée en mosaïque. Une même image sert à plusieurs solides ; elle est enregistrée dans le fichier `.xcad`. Visible dans les styles Réaliste, Rendu et Photoréaliste ; se combine avec un matériau (brillance, métal).
+- **Pinceau de propriétés** (**`PINCEAU`**, onglet Début › Propriétés, ancien `CORRESPROP` toujours accepté) : choisissez un objet source puis, en clics ou en fenêtres, les objets qui prennent ses propriétés : calque, couleur, **matériau**, **texture**, style de texte (hauteur, largeur, interligne, rotation), de cote (style, hauteur du texte, tolérance) ou de hachures (motif, échelle, angle). Option **Paramètres** pour choisir les propriétés copiées (choix mémorisé). Un objet présélectionné sert de source.
+- **Fermeture sans perte** : en quittant la version bureau, une fenêtre propose pour les dessins modifiés **Enregistrer tout**, **Choisir pour chaque dessin**, **Quitter sans enregistrer** ou **Annuler** (un seul dessin : Enregistrer / Ne pas enregistrer / Annuler). Fermer un onglet modifié le demandait déjà. Les dessins abandonnés volontairement ne sont plus proposés en récupération au démarrage suivant.
+
+---
+
 ## 1.3.0 — 22 novembre 2026
 
 Xylform CAD 1.3.0 : faites dessiner vos pièces par une IA, avec des scripts de commandes ou directement par la connexion IA (serveur MCP).

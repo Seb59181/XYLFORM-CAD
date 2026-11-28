@@ -89,6 +89,7 @@ export function headlessUi(base: UiApi, log: (m: string) => void): UiApi {
     choose: async (_m, _t, buttons) => buttons.length - 1,
     scriptEditor: async () => null,
     mcpPanel: () => undefined,
+    renderPanel: async () => null,
   };
 }
 

@@ -93,6 +93,7 @@ export function Viewport() {
       },
       screenshot: () => vp.screenshot(),
       renderImage: (w, h, bg, ss) => vp.renderImage(w, h, bg, ss),
+      previewRender: (setup) => (setup ? scene.previewRender(setup.lights, setup.env) : scene.rebuild()),
       viewSize: () => vp.viewSize,
       worldUnitsPerPixel: () => vp.worldUnitsPerPixel(),
       setLiveTransform: (handles, m) =>
