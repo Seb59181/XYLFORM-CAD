@@ -111,7 +111,7 @@ function TitleBar() {
         {q('open', 'Ouvrir (Ctrl+O)', 'OUVRIR')}
         {q('save', 'Enregistrer (Ctrl+S)', 'ENREG')}
         {q('saveas', 'Enregistrer sous (Ctrl+Maj+S)', 'ENREGSOUS')}
-        {q('import', 'Importer DWG, DXF ou STEP', 'IMPORTER')}
+        {q('import', 'Importer DWG, DXF, STEP, STL, 3MF ou IFC', 'IMPORTER')}
         {q('xref-attach', 'Attacher un fond de plan (DWG, DXF, PDF, image)', 'ATTACHER')}
         <span className="tb-sep" />
         {q('undo', 'Annuler (Ctrl+Z)', 'ANNULER', !doc.canUndo)}

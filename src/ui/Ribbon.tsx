@@ -189,7 +189,7 @@ const TABS: Tab[] = [
       {
         title: 'Importer',
         large: [
-          { label: 'Importer', icon: 'import', cmd: 'IMPORTER', tip: 'Insère un DWG, DXF, STEP, STL ou 3MF dans le dessin courant (les modèles STL/3MF restent modifiables : déplacer, booléens, coupe, export)' },
+          { label: 'Importer', icon: 'import', cmd: 'IMPORTER', tip: 'Insère un DWG, DXF, STEP, STL, 3MF ou IFC dans le dessin courant (les modèles STL/3MF/IFC restent modifiables : déplacer, booléens, coupe, export)' },
           { label: 'Ouvrir', icon: 'open', cmd: 'OUVRIR' },
         ],
       },
@@ -659,6 +659,12 @@ const TABS: Tab[] = [
           { label: 'Vérifier', icon: 'print3d', cmd: 'VERIFSOLIDE', tip: 'Vérifie que les solides sont valides et étanches avant impression' },
           { label: 'Imprimabilité', icon: 'interfere', cmd: 'IMPRIMABILITE', tip: 'Chevauchements, parois trop fines et porte-à-faux colorés dans la vue' },
         ],
+      },
+      {
+        title: 'BIM',
+        only: '3d',
+        large: [{ label: 'IFC', icon: 'ifc', cmd: 'EXPORTIFC', tip: 'Export IFC pour les logiciels BIM : murs, dalles, poteaux, poutres… avec calques, matériaux et dimensions (IMPORTER lit aussi les fichiers IFC)' }],
+        small: [{ label: 'Classe IFC', icon: 'ifc', cmd: 'CLASSEIFC', tip: 'Choisit la classe IFC des solides : mur, dalle, poteau, porte… (sinon classement automatique)' }],
       },
       {
         title: 'Exporter',

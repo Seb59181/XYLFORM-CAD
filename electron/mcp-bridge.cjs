@@ -25,7 +25,7 @@ const INSTRUCTIONS = [
   'Xylform CAD est un logiciel de CAO 2D/3D pour l’impression 3D (unité : mm, Z vers le haut).',
   'Pour modéliser, appelle d’abord xylform_consigne (format des scripts et liste des commandes), puis xylform_executer_script avec un script de commandes.',
   'Après chaque script, lis le compte rendu : en cas d’erreur, corrige la ligne en cause et relance seulement la suite.',
-  'Vérifie le résultat avec xylform_capture (image) ou xylform_etat (dimensions et volumes), puis exporte avec xylform_exporter (stl ou 3mf).',
+  'Vérifie le résultat avec xylform_capture (image) ou xylform_etat (dimensions et volumes), puis exporte avec xylform_exporter (stl ou 3mf ; ifc pour un logiciel BIM).',
 ].join(' ');
 
 const TOOLS = [
@@ -81,7 +81,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        format: { type: 'string', enum: ['stl', '3mf', 'step', 'dxf', 'svg', 'xcad'], description: 'Format du fichier.' },
+        format: { type: 'string', enum: ['stl', '3mf', 'step', 'ifc', 'dxf', 'svg', 'xcad'], description: 'Format du fichier.' },
         chemin: { type: 'string', description: 'Chemin complet du fichier, ou dossier de destination. Facultatif.' },
         objets: { type: 'string', description: 'Objets à exporter : noms de script séparés par des virgules ($plaque,$capot). Défaut : tous les solides visibles.' },
       },

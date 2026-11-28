@@ -134,7 +134,9 @@ Un profil **fermé** (POLYLIGNE avec `C`, RECTANGLE, CERCLE, POLYGONE) donne un 
 | `VUE` | `Dessus`, `Face`, `Droite`, `ISOSE`, `ISOSO`… | `VUE ISOSE` |
 | `ZOOM` | `E` étendu | `ZOOM E` |
 | `NOUVEAU` | — (nouveau dessin vide) | |
+| `CLASSEIFC` | objets, classe BIM : `Mur`, `Dalle`, `Poteau`, `Poutre`, `Toiture`, `Porte`, `Fenetre`, `Escalier`, `Garde-corps`, `Revetement`, `Fondation`, `Ossature`, `Plaque`, `Mobilier`, `Generique` ou `AU` (automatique d'après le nom, le calque et la forme) | `CLASSEIFC $plaque Dalle` |
 | `EXPORTSTL` / `EXPORT3MF` | — (exporte les solides ; le contrôle d'imprimabilité est fait) | |
+| `EXPORTIFC` | — (exporte les solides en IFC4 pour un logiciel BIM : murs, dalles, poteaux… avec calques, matériaux, dimensions) | |
 
 ## 5. Exemple complet
 

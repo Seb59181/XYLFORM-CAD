@@ -14,6 +14,7 @@ import type { HoleSpec } from '../geometry/holes';
 import type { Linetype } from '../linetypes';
 import { assocPoint } from '../entities/geometry';
 import { DEFAULT_RENDER_ENV, type LightDef, type RenderEnvironment, type TextureDef, type TextureMapping } from '../render';
+import type { BimInfo } from '../bim';
 
 export interface LayerDef {
   name: string;
@@ -128,7 +129,7 @@ export type Entity =
       textHeight?: number;
     })
   /** `primitive` : primitive d'origine (cotes modifiables dans la palette Propriétés). */
-  | (EntityBase & { type: '3DSOLID'; name: string; shapeId: string; display: DisplayMesh; primitive?: PrimitiveDef; history?: Feature[]; material?: string; texture?: TextureMapping; threadsReal?: boolean })
+  | (EntityBase & { type: '3DSOLID'; name: string; shapeId: string; display: DisplayMesh; primitive?: PrimitiveDef; history?: Feature[]; material?: string; texture?: TextureMapping; threadsReal?: boolean; bim?: BimInfo })
   /**
    * Fond de plan (référence externe) : instance d'une définition `UnderlayDef` du document,
    * placée par point d'insertion, échelle, rotation (radians) et symétrie éventuelle.

@@ -28,7 +28,8 @@ import { utilityCommands } from './utility';
 import { interfaceCommands } from './interface';
 import { updateCommands } from './updates';
 import { scriptCommands } from './script';
+import { bimCommands } from './bim';
 
 export function registerAll(registry: CommandRegistry): void {
-  for (const def of [...drawCommands, ...dimensionCommands, ...annotateCommands, ...guideCommands, ...modifyCommands, ...solidCommands, ...constraintCommands, ...utilityCommands, ...fileCommands, ...underlayCommands, ...tools3dCommands, ...sectionPlaneCommands, ...presentationCommands, ...selectCommands, ...measureCommands, ...text3dCommands, ...jointCommands, ...holeCommands, ...array3dCommands, ...renderCommands, ...painterCommands, ...drawingCommands, ...sheetCommands, ...blockCommands, ...sheetMetalCommands, ...interfaceCommands, ...updateCommands, ...scriptCommands]) registry.register(def);
+  for (const def of [...drawCommands, ...dimensionCommands, ...annotateCommands, ...guideCommands, ...modifyCommands, ...solidCommands, ...constraintCommands, ...utilityCommands, ...fileCommands, ...underlayCommands, ...tools3dCommands, ...sectionPlaneCommands, ...presentationCommands, ...selectCommands, ...measureCommands, ...text3dCommands, ...jointCommands, ...holeCommands, ...array3dCommands, ...renderCommands, ...painterCommands, ...drawingCommands, ...sheetCommands, ...blockCommands, ...sheetMetalCommands, ...interfaceCommands, ...updateCommands, ...scriptCommands, ...bimCommands]) registry.register(def);
 }

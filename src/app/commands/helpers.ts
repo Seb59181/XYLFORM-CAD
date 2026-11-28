@@ -154,3 +154,10 @@ export function outlines(app: AppHost, handles: string[], budget = 40000): Vec3[
   return out;
 }
 
+/** Objets à exporter : sélection courante sinon tout le visible. */
+export function exportSet(app: AppHost, accept: (e: Entity) => boolean): Entity[] {
+  // les fonds de plan restent des références ; les lignes de construction ne sortent pas
+  const filter = (e: Entity) => e.type !== 'UNDERLAY' && !(e.type === 'LINE' && e.guide) && accept(e);
+  const pre = app.takePreselection().map((h) => app.doc.get(h)).filter((e): e is Entity => !!e && filter(e));
+  return pre.length ? pre : app.visible().filter(filter);
+}
