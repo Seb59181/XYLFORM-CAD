@@ -1,6 +1,8 @@
 /**
  * Rendu réaliste : MATERIAU attribue un matériau (acier, laiton, PLA, verre…) aux solides ;
- * TEXTURE plaque une image sur leurs faces (taille du motif réglable) ; LUMIERE pose une
+ * MATIERES plaque un matériau d'aspect réel de la bibliothèque intégrée (pelouse, carrelage,
+ * plâtre, béton, bois, pierre bleue…, avec relief et rugosité) à sa taille réelle ;
+ * TEXTURE plaque une image sur leurs faces (taille du motif réglable, relief tiré de l'image) ; LUMIERE pose une
  * ampoule, un projecteur ou un soleil ; LUMIERES règle lumières et ambiance avec aperçu en
  * direct ; RENDU produit une image PNG haute définition (styles Rendu et Photoréaliste) ;
  * RAYONS calcule une image photoréaliste par lancer de rayons (lumière globale, reflets et
@@ -9,7 +11,8 @@
 import type { CommandContext, CommandDefinition, Vec3 } from '../../core/commands';
 import type { Entity } from '../../core/document/Document';
 import { MATERIALS } from '../../core/materials';
-import { defaultLight, LIGHT_PRESETS, newTextureId, sanitizeLight, type LightKind, type TextureMapping } from '../../core/render';
+import { defaultLight, LIGHT_PRESETS, newTextureId, reliefPercent, sanitizeLight, type LightKind, type TextureMapping } from '../../core/render';
+import { libraryTexture, libraryUrl, type LibraryTexture } from '../../core/textureLibrary';
 import { baseName, saveFile } from '../../io/fileAccess';
 import type { AppHost, RaytraceSettings } from '../AppHost';
 import { cmd, fmt, getAngle, getDistance, getKeyword, getPoint, isBody, kw, selectObjects } from './helpers';
@@ -110,17 +113,33 @@ const texture = cmd('TEXTURE', 'TEXTURE', ['TEXTURES', 'PLAQUER'], 'Plaque une i
         label: 'Image',
         type: 'select',
         value: cur && app.doc.textures[cur.ref] ? cur.ref : '+new',
-        options: [{ value: '+new', label: 'Choisir une image sur le disque…' }, ...known.map((t) => ({ value: t.id, label: t.name })), ...(cur ? [{ value: '+none', label: 'Retirer la texture' }] : [])],
+        options: [
+          { value: '+lib', label: 'Bibliothèque de matériaux réalistes…' },
+          { value: '+new', label: 'Choisir une image sur le disque…' },
+          ...known.map((t) => ({ value: t.id, label: t.library ? `${t.name} (bibliothèque)` : t.name })),
+          ...(cur ? [{ value: '+none', label: 'Retirer la texture' }] : []),
+        ],
       },
       { key: 'size', label: 'Taille du motif (mm)', type: 'number', value: cur?.size ?? Math.max(1, Math.round(span / 2)), min: 0.01, hint: 'Largeur d’une image sur la pièce : plus petit = motif plus serré' },
       { key: 'angle', label: 'Rotation du motif (°)', type: 'number', value: cur?.angle ?? 0 },
       { key: 'offsetU', label: 'Décalage horizontal (mm)', type: 'number', value: cur?.offsetU ?? 0 },
       { key: 'offsetV', label: 'Décalage vertical (mm)', type: 'number', value: cur?.offsetV ?? 0 },
+      {
+        key: 'relief',
+        label: 'Relief (%)',
+        type: 'number',
+        value: cur ? reliefPercent(cur, app.doc.textures[cur.ref]) : 0,
+        min: 0,
+        max: 400,
+        step: 10,
+        hint: 'Photo : relief tiré des clairs et des sombres de l’image (essayez 100 %) ; bibliothèque : 100 % = relief réel ; 0 = lisse',
+      },
       { key: 'photo', label: 'Passer au style Photoréaliste', type: 'checkbox', value: app.settings.visualStyle !== 'photo' && app.settings.visualStyle !== 'render' && app.settings.visualStyle !== 'realistic' },
     ],
     ok: 'Appliquer',
   });
   if (!v) return;
+  if (v.image === '+lib') return applyLibrary(ctx, app, hs);
   if (v.image === '+none') {
     app.doc.transaction('Retirer la texture', () => hs.forEach((h) => app.doc.replaceEntity(h, { texture: undefined })));
     ctx.print(`Texture retirée de ${hs.length} solide(s).`);
@@ -136,7 +155,17 @@ const texture = cmd('TEXTURE', 'TEXTURE', ['TEXTURES', 'PLAQUER'], 'Plaque une i
       if (!file) return;
       ref = await importTexture(app, file);
     }
-    const mapping: TextureMapping = { ref, size, ...(Number(v.angle) ? { angle: Number(v.angle) } : {}), ...(Number(v.offsetU) ? { offsetU: Number(v.offsetU) } : {}), ...(Number(v.offsetV) ? { offsetV: Number(v.offsetV) } : {}) };
+    const relief = Math.max(0, Math.min(400, Number(v.relief) || 0));
+    const isLib = !!app.doc.textures[ref]?.library;
+    const mapping: TextureMapping = {
+      ref,
+      size,
+      ...(Number(v.angle) ? { angle: Number(v.angle) } : {}),
+      ...(Number(v.offsetU) ? { offsetU: Number(v.offsetU) } : {}),
+      ...(Number(v.offsetV) ? { offsetV: Number(v.offsetV) } : {}),
+      // valeur par défaut omise : 100 % pour la bibliothèque, 0 % (lisse) pour une image importée
+      ...(relief !== (isLib ? 100 : 0) ? { relief } : {}),
+    };
     app.doc.transaction('Texture', () => hs.forEach((h) => app.doc.replaceEntity(h, { texture: mapping })));
     const def = app.doc.textures[ref]!;
     ctx.print(`Texture « ${def.name} » sur ${hs.length} solide(s), motif de ${fmt(size)} mm${def.width && def.height ? ` × ${fmt((size * def.height) / def.width)} mm` : ''}.`);
@@ -146,6 +175,70 @@ const texture = cmd('TEXTURE', 'TEXTURE', ['TEXTURES', 'PLAQUER'], 'Plaque une i
   if (v.photo) app.set('visualStyle', 'photo');
   else if (app.settings.visualStyle !== 'photo' && app.settings.visualStyle !== 'render' && app.settings.visualStyle !== 'realistic') ctx.print('La texture se voit dans les styles Réaliste, Rendu et Photoréaliste.');
 });
+
+/** Image de couleur d'un matériau de la bibliothèque, ajoutée au dessin une seule fois. */
+async function libraryTextureRef(app: AppHost, lib: LibraryTexture): Promise<string> {
+  const known = Object.values(app.doc.textures).find((t) => t.library === lib.id);
+  if (known) return known.id;
+  const res = await fetch(libraryUrl(lib.id, 'couleur'));
+  if (!res.ok) throw new Error(`Image de « ${lib.label} » introuvable dans l’application.`);
+  const data = new Uint8Array(await res.arrayBuffer());
+  let width: number | undefined, height: number | undefined;
+  try {
+    const bmp = await createImageBitmap(new Blob([data], { type: 'image/webp' }));
+    width = bmp.width;
+    height = bmp.height;
+    bmp.close();
+  } catch {
+    // tailles d'information seulement
+  }
+  const id = newTextureId(app.doc.textures);
+  app.doc.addTexture({ id, name: lib.label, mime: 'image/webp', data, width, height, library: lib.id }, 'Texture');
+  return id;
+}
+
+/** Fenêtre de la bibliothèque puis application aux solides `hs`. */
+async function applyLibrary(ctx: CommandContext, app: AppHost, hs: string[]): Promise<void> {
+  const first = app.doc.get(hs[0]!) as Solid;
+  const cur = first.texture;
+  const curDef = cur ? app.doc.textures[cur.ref] : undefined;
+  const r = await app.ui.textureLibrary({
+    solids: hs.length,
+    ...(curDef?.library && cur ? { id: curDef.library, size: cur.size, angle: cur.angle ?? 0, relief: reliefPercent(cur, curDef) } : {}),
+  });
+  if (!r?.id) return;
+  const lib = libraryTexture(r.id);
+  if (!lib) return;
+  const size = r.size && r.size > 0 ? r.size : lib.size;
+  const relief = Math.max(0, Math.min(400, r.relief ?? 100));
+  app.doc.beginGroup(`Matière : ${lib.label}`);
+  try {
+    const ref = await libraryTextureRef(app, lib);
+    const mapping: TextureMapping = { ref, size, ...(r.angle ? { angle: r.angle } : {}), ...(relief !== 100 ? { relief } : {}) };
+    // un matériau choisi avant (acier, PLA…) masquerait la rugosité propre de la matière
+    app.doc.transaction(`Matière : ${lib.label}`, () => hs.forEach((h) => app.doc.replaceEntity(h, { texture: mapping, material: undefined })));
+  } finally {
+    app.doc.endGroup();
+  }
+  const s = app.settings.visualStyle;
+  if (app.settings.workspace === '3d' && s !== 'photo' && s !== 'render' && s !== 'realistic') {
+    app.set('visualStyle', 'photo');
+    ctx.print('Style visuel : Photoréaliste.');
+  }
+  ctx.print(`${lib.label} sur ${hs.length} solide(s), motif de ${fmt(size)} mm${size === lib.size ? ' (taille réelle)' : ''}, relief ${fmt(relief)} %.`);
+}
+
+const library = cmd(
+  'MATERIALLIBRARY',
+  'MATIERES',
+  ['BIBLIOTEXTURES', 'TEXTURESREELLES', 'BIBLIOMATIERES', 'MATIERE'],
+  'Bibliothèque de matériaux réalistes (pelouse, carrelage, plâtre, béton, macadam, bois, pierre bleue…) plaqués à leur taille réelle, avec relief',
+  async (ctx, app) => {
+    const hs = await selectObjects(ctx, 'Choisissez les solides à habiller', isBody);
+    if (!hs.length) return;
+    await applyLibrary(ctx, app, hs);
+  },
+);
 
 const KIND_KW: Record<string, LightKind> = { Point: 'point', Spot: 'spot', Sun: 'directional' };
 
@@ -324,4 +417,4 @@ const raytrace = cmd('RAYTRACE', 'RAYONS', ['LANCERRAYONS', 'RENDUPHOTO', 'RENDU
   await openRaytrace(ctx, app);
 });
 
-export const renderCommands: CommandDefinition[] = [material, texture, light, lights, render, raytrace];
+export const renderCommands: CommandDefinition[] = [material, library, texture, light, lights, render, raytrace];

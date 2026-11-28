@@ -5,6 +5,24 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.6.0 — 28 novembre 2026
+
+Xylform CAD 1.6.0 : une bibliothèque de matériaux d'aspect réel, de la pelouse à la pierre bleue.
+
+- **Bibliothèque de matériaux** (**`MATIERES`**, bouton **Matières** de l'onglet Vue › Rendu, ou `TEXTURE` › Bibliothèque de matériaux réalistes) : 53 matières rangées en 9 catégories, avec vignettes et recherche (sans accents : « beton », « asphalte », « toit »…).
+  - **Sols extérieurs** : pelouse, herbe haute, terre, gravier, sable, macadam, pavés béton en chevrons, pavés anciens, dalles de jardin.
+  - **Béton et ciment** : ciment lissé, béton brut, béton banché, parpaing, chape.
+  - **Plâtre et enduits** : plâtre lisse, carreaux de plâtre 66 × 50 cm, plaque de plâtre avec joints, crépi, enduit à la chaux.
+  - **Pierre** : pierre bleue adoucie, pierre bleue bouchardée, pierre de taille, moellons, marbre blanc, granit, ardoise.
+  - **Briques** (rouge, claire, peinte en blanc), **carrelage** (blanc 20 × 20, grand format 60 × 60, faïence métro, carreaux de ciment, mosaïque, tomettes), **bois** (chêne, pin, noyer, parquet à lames, bâtons rompus, lames de terrasse, contreplaqué, OSB), **toiture et bardage** (tuiles, ardoises, zinc à joint debout, bardage bois, tôle ondulée), **métaux et divers** (acier rouillé, tôle larmée, acier galvanisé, moquette, cuir).
+- **Taille réelle** : chaque matière est posée à sa vraie échelle (un carreau de 20 cm mesure 20 cm sur la pièce) ; taille du motif, rotation (+90° en un clic) et **relief** (0 à 400 %) réglables.
+- **Relief et rugosité** : les joints se creusent, l'herbe, les fibres du bois et les aspérités de la pierre accrochent la lumière ; le carrelage brille, le plâtre reste mat. Visible dans les styles Réaliste, Rendu, Photoréaliste et dans le lancer de rayons (`RAYONS`).
+- **Photos en relief** : `TEXTURE` a un nouveau réglage **Relief (%)** ; pour une image importée, Xylform CAD tire le relief des clairs et des sombres de la photo (essayez 100 %). Les dessins existants restent lisses tant que le relief est à 0.
+- Les matières sont enregistrées dans le fichier `.xcad` : le dessin s'ouvre à l'identique sur un autre poste.
+- Les textures sont entièrement calculées par le programme `scripts/textures/generer.py` (aucune photo tierce, libres comme le reste du logiciel).
+
+---
+
 ## 1.5.1 — 28 novembre 2026
 
 Xylform CAD 1.5.1 : on voit maintenant que le dessin s'enregistre.

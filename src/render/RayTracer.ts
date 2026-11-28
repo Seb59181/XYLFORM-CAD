@@ -32,6 +32,10 @@ export function physicalFrom(src: THREE.MeshStandardMaterial, lib: RenderMateria
   const p = new THREE.MeshPhysicalMaterial({
     color: src.color.clone(),
     map: src.map,
+    // relief et rugosité des textures (bibliothèque de matériaux, photos en relief)
+    normalMap: src.normalMap,
+    normalScale: src.normalScale.clone(),
+    roughnessMap: src.roughnessMap,
     metalness: src.metalness,
     roughness: src.roughness,
     emissive: src.emissive.clone(),
@@ -321,7 +325,10 @@ export class RayTracer implements RaytraceJob {
     if (!solids.length) throw new Error('Aucun solide visible à rendre (le lancer de rayons rend les solides et surfaces 3D).');
     // les images de texture sont décodées en tâche de fond : on les attend un peu
     const maps = solids.map((s) => s.mat.map).filter((t): t is THREE.Texture => !!t);
-    for (let i = 0; i < 40 && maps.some((t) => !t.image); i++) await new Promise((r) => setTimeout(r, 50));
+    // (relief et rugosité : image provisoire d'un pixel tant que le calcul n'est pas fini)
+    const surf = solids.flatMap((s) => [s.mat.normalMap, s.mat.roughnessMap]).filter((t): t is THREE.Texture => !!t);
+    const pending = () => maps.some((t) => !t.image) || surf.some((t) => (t.image as { width?: number } | null)?.width === 1);
+    for (let i = 0; i < 60 && pending(); i++) await new Promise((r) => setTimeout(r, 50));
     const c = box.getCenter(this.center);
     const r = (this.radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1e-3));
 

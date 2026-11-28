@@ -312,6 +312,16 @@ export interface UiApi {
   raytracePanel(initial: RaytraceSettings): Promise<void>;
   /** Fenêtre des scripts de commandes : texte à exécuter, ou null si fermée. */
   scriptEditor(state: ScriptEditorState): Promise<ScriptEditorResult | null>;
+  /** Bibliothèque de matériaux réalistes (vignettes par catégorie) : choix validé, ou null. */
+  textureLibrary(initial: TextureLibraryChoice & { solids: number }): Promise<TextureLibraryChoice | null>;
+}
+
+/** Choix dans la bibliothèque de matériaux : matériau, taille du motif (mm), rotation (°), relief (%). */
+export interface TextureLibraryChoice {
+  id?: string;
+  size?: number;
+  angle?: number;
+  relief?: number;
 }
 
 export interface ScriptEditorState {
@@ -430,6 +440,7 @@ const fallbackUi: UiApi = {
   mcpPanel: () => undefined,
   renderPanel: async () => null,
   raytracePanel: async () => undefined,
+  textureLibrary: async () => null,
 };
 
 let tabCounter = 0;

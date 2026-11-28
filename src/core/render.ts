@@ -39,6 +39,11 @@ export interface TextureDef {
   /** Taille de l'image en pixels (information). */
   width?: number;
   height?: number;
+  /**
+   * Matériau de la bibliothèque intégrée (textureLibrary.ts) dont l'image vient : la vue y ajoute
+   * son relief et sa rugosité. Absent = image importée (relief tiré de la photo).
+   */
+  library?: string;
 }
 
 /** Texture appliquée à un solide : taille d'un motif sur la pièce (mm), rotation, décalage. */
@@ -51,6 +56,18 @@ export interface TextureMapping {
   /** Décalage du motif (mm). */
   offsetU?: number;
   offsetV?: number;
+  /**
+   * Relief en % (Xylform CAD ≥ 1.6) : 100 = relief réel du matériau de la bibliothèque, ou relief
+   * modéré tiré de l'image pour une photo importée ; 0 = surface lisse. Absent = 100 pour la
+   * bibliothèque, 0 pour une image importée (dessins des versions précédentes inchangés).
+   */
+  relief?: number;
+}
+
+/** Relief effectif d'une texture (%). */
+export function reliefPercent(m: Pick<TextureMapping, 'relief'>, def: Pick<TextureDef, 'library'> | undefined): number {
+  const r = m.relief ?? (def?.library ? 100 : 0);
+  return Number.isFinite(r) ? Math.min(400, Math.max(0, r)) : 0;
 }
 
 export type EnvironmentKind = 'studio' | 'outdoor' | 'workshop' | 'night';

@@ -24,7 +24,8 @@ import { fadeColor, underlayEntities, underlayPickData } from '../core/entities/
 import type { AppHost } from '../app/AppHost';
 import { constraintDisplay } from '../app/commands/constraints';
 import { materialById } from '../core/materials';
-import { boxUVs, type LightDef, type TextureDef } from '../core/render';
+import { boxUVs, reliefPercent, type LightDef, type TextureDef, type TextureMapping } from '../core/render';
+import { heightFromPhoto, libraryTexture, libraryUrl, normalsFromHeight } from '../core/textureLibrary';
 import { dashPolys, patternOf } from '../core/linetypes';
 import { CadViewport } from './CadViewport';
 
@@ -131,6 +132,8 @@ export class SceneSync {
   /** Images de texture décodées (par définition : deux dessins peuvent avoir chacun leur « T1 »). */
   private readonly texCache = new WeakMap<TextureDef, { tex: THREE.Texture; serial: number }>();
   private texSerial = 0;
+  /** Relief (carte de normales) et rugosité d'une image de texture, calculés en tâche de fond. */
+  private readonly surfCache = new WeakMap<TextureDef, { normal: THREE.DataTexture; rough: THREE.DataTexture | null }>();
   private renderKey: unknown[] = [];
   private readonly lightGroup = new THREE.Group();
 
@@ -237,12 +240,17 @@ export class SceneSync {
     return m;
   }
 
-  private solidMat(color: string, surface: boolean, material?: string, texture?: TextureDef): THREE.Material {
+  private solidMat(color: string, surface: boolean, material?: string, texture?: TextureDef, mapping?: TextureMapping): THREE.Material {
     const style = this.app.settings.visualStyle;
     const rich = style === 'realistic' || isRenderStyle(style);
-    const lib = rich ? (materialById(material) ?? (texture ? DEFAULT_TEXTURED : undefined)) : undefined;
+    const own = materialById(material);
+    const lib = rich ? (own ?? (texture ? DEFAULT_TEXTURED : undefined)) : undefined;
     const tex = rich && texture ? this.textureOf(texture) : undefined;
-    const key = `${color}|${style}|${surface ? 1 : 0}|${lib?.id ?? ''}|${tex?.serial ?? ''}`;
+    // relief et rugosité : bibliothèque (cartes livrées) ou photo importée (relief tiré de l'image)
+    const relief = tex && texture && mapping ? reliefPercent(mapping, texture) : 0;
+    const libTex = texture?.library ? libraryTexture(texture.library) : undefined;
+    const surf = tex && texture && (relief > 0 || (libTex && !own)) ? this.surfaceOf(texture) : undefined;
+    const key = `${color}|${style}|${surface ? 1 : 0}|${lib?.id ?? ''}|${tex?.serial ?? ''}|${relief}|${surf ? 1 : 0}`;
     let m = this.meshMats.get(key);
     if (!m && lib) {
       // matériau de la bibliothèque : métal, plastique, verre… (texture : l'image donne la couleur)
@@ -262,6 +270,17 @@ export class SceneSync {
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
       });
+      if (surf && relief > 0) {
+        pm.normalMap = surf.normal;
+        pm.normalScale.set(relief / 100, relief / 100);
+      }
+      if (surf?.rough && libTex && !own) {
+        // matériau de la bibliothèque : rugosité et aspect métallique propres
+        pm.roughnessMap = surf.rough;
+        pm.roughness = 1;
+        pm.metalness = libTex.metalness;
+        pm.envMapIntensity = libTex.metalness > 0.5 ? 1.4 : 1;
+      }
       if (surface || lib.opacity !== undefined) pm.side = THREE.DoubleSide;
       m = pm;
       this.meshMats.set(key, m);
@@ -313,6 +332,51 @@ export class SceneSync {
       .catch(() => this.app.log(`Texture « ${def.name} » : image illisible.`));
     this.disposers.push(() => tex.dispose());
     return t;
+  }
+
+  /**
+   * Carte de normales et de rugosité d'une texture : fichiers hauteur/rugosité de la bibliothèque,
+   * ou relief calculé à partir de l'image importée. Surface plane en attendant le calcul.
+   */
+  private surfaceOf(def: TextureDef): { normal: THREE.DataTexture; rough: THREE.DataTexture | null } {
+    let s = this.surfCache.get(def);
+    if (s) return s;
+    const lib = libraryTexture(def.library);
+    const normal = dataTexture(new Uint8Array([128, 128, 255, 255]), 1, 1);
+    const rough = lib ? dataTexture(new Uint8Array([200, 200, 200, 255]), 1, 1) : null;
+    s = { normal, rough };
+    this.surfCache.set(def, s);
+    const done = () => this.vp.requestRender();
+    if (lib) {
+      void decodeRgba(libraryUrl(lib.id, 'hauteur'))
+        .then(({ data, width, height }) => {
+          const gray = new Uint8Array(width * height);
+          for (let i = 0; i < gray.length; i++) gray[i] = data[i * 4]!;
+          // hauteur.webp couvre toute l'image : pixel = largeur réelle / largeur en pixels
+          setData(normal, normalsFromHeight(gray, width, height, lib.relief, lib.size / width), width, height);
+          done();
+        })
+        .catch(() => this.app.log(`Relief de « ${lib.label} » introuvable.`));
+      void decodeRgba(libraryUrl(lib.id, 'rugosite'))
+        .then(({ data, width, height }) => {
+          setData(rough!, data, width, height);
+          done();
+        })
+        .catch(() => undefined);
+    } else {
+      void decodeRgba(new Blob([def.data as Uint8Array<ArrayBuffer>], { type: def.mime }), 512)
+        .then(({ data, width, height }) => {
+          // photo : image ramenée à 1 m de large, relief de 15 mm entre le plus creux et le plus haut
+          setData(normal, normalsFromHeight(heightFromPhoto(data, width, height), width, height, PHOTO_RELIEF_MM, 1000 / width), width, height);
+          done();
+        })
+        .catch(() => undefined);
+    }
+    this.disposers.push(() => {
+      normal.dispose();
+      rough?.dispose();
+    });
+    return s;
   }
 
   /** Lumières et ambiance du dessin vers la vue (+ repères des lampes dans l'espace 3D). */
@@ -886,7 +950,7 @@ export class SceneSync {
       const n = geo.getAttribute('normal');
       geo.setAttribute('uv', new THREE.BufferAttribute(boxUVs(d.positions, n.array, e.texture, texDef.width && texDef.height ? texDef.height / texDef.width : 1), 2));
     }
-    const mesh = new THREE.Mesh(geo, this.solidMat(color, d.solidCount === 0, e.material, texDef));
+    const mesh = new THREE.Mesh(geo, this.solidMat(color, d.solidCount === 0, e.material, texDef, e.texture));
     mesh.castShadow = mesh.receiveShadow = isRenderStyle(style);
     mesh.userData.handle = e.handle;
     mesh.userData.closedSolid = d.solidCount > 0; // bouchage des coupes possible
@@ -1240,4 +1304,38 @@ function makeGripTexture(): THREE.Texture {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/** Relief d'une photo importée à 100 % : écart creux → bosses pour une image d'un mètre de large. */
+const PHOTO_RELIEF_MM = 15;
+
+/** Texture de données raccordable et filtrée (relief, rugosité). */
+function dataTexture(data: Uint8Array, width: number, height: number): THREE.DataTexture {
+  const t = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
+function setData(t: THREE.DataTexture, data: Uint8Array | Uint8ClampedArray, width: number, height: number): void {
+  t.dispose(); // nouvelle taille : la place sur la carte graphique est refaite
+  t.image = { data: data instanceof Uint8Array ? data : new Uint8Array(data.buffer, data.byteOffset, data.length), width, height };
+  t.needsUpdate = true;
+}
+
+/** Pixels RGBA d'une image (adresse ou octets), réduite à `max` px de large au besoin. */
+async function decodeRgba(src: string | Blob, max = 4096): Promise<{ data: Uint8ClampedArray; width: number; height: number }> {
+  const blob = typeof src === 'string' ? await (await fetch(src)).blob() : src;
+  const full = await createImageBitmap(blob);
+  const k = Math.min(1, max / Math.max(full.width, full.height));
+  const width = Math.max(1, Math.round(full.width * k)), height = Math.max(1, Math.round(full.height * k));
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(full, 0, 0, width, height);
+  full.close();
+  return { data: ctx.getImageData(0, 0, width, height).data, width, height };
 }
