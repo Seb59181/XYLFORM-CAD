@@ -5,6 +5,8 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { IfcAPI } from 'web-ifc';
+import { readIfc } from '../src/io/ifc/IfcReader';
 import initOpenCascade from 'opencascade.js/dist/node.js';
 import { OccKernel } from '../src/kernel/OccKernel';
 import { run as runKernel } from '../src/kernel/dispatch';
@@ -95,6 +97,7 @@ EFFACER $aide
 capot = BOITE 600,0,0 640,30,5
 COULEUR $capot #2a9d8f
 NOMOBJET $capot "Capot avant"
+CLASSEIFC $plaque Dalle
 VUE ISOSE
 VUE Dessus
 ZOOM E
@@ -203,6 +206,30 @@ RACCORDBORD R 5 $plaque:verticales
     expect(n).toBe(12);
     expect(named('a')[0]!.name).toBe('Cale');
     expect(named('a')[0]!.color).toBe('#1d70c9');
+  }, 120_000);
+
+  it('export IFC par script : classes, extrusions, relecture', async () => {
+    app.newTab();
+    const files: { name: string; bytes: Uint8Array }[] = [];
+    const prev = setSaveRedirect(async (bytes, opts) => (files.push({ name: opts.name, bytes }), { name: opts.name }));
+    try {
+      const r = await app.script.run('m = BOITE 0,0,0 5000,200,2500\nNOMOBJET $m "Mur nord"\np = CYLINDRE 2500,2000,0 150 2500\nd = BOITE 0,0,-200 5000,4000,0\nb = BOITE 0,0,2500 300,300,2800\nCLASSEIFC $b Mobilier\nEXPORTIFC', { headless: true });
+      expect(r.ok, formatReport(r, true)).toBe(true);
+    } finally {
+      setSaveRedirect(prev);
+    }
+    expect(files).toHaveLength(1);
+    const text = new TextDecoder().decode(files[0]!.bytes);
+    expect(text).toContain("FILE_SCHEMA(('IFC4'))");
+    // boîtes et cylindre écrits en extrusions modifiables
+    expect(text.match(/IFCEXTRUDEDAREASOLID/g)).toHaveLength(4);
+    expect(text).toContain('IFCCIRCLEPROFILEDEF');
+    const api = new IfcAPI();
+    await api.Init(undefined, true);
+    const read = readIfc(api, files[0]!.bytes);
+    api.Dispose();
+    expect(read.elements.find((e) => e.name === 'Mur nord')?.type).toBe('IFCWALL');
+    expect(read.elements.map((e) => e.type).sort()).toEqual(['IFCCOLUMN', 'IFCFURNISHINGELEMENT', 'IFCSLAB', 'IFCWALL']);
   }, 120_000);
 
   it('outils MCP : script, état, export vers un chemin, annulation', async () => {

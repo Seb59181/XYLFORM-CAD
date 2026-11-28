@@ -10,6 +10,7 @@ import type { Entity, HatchPattern, NewEntity, PrimitiveOp, TextAlign, TextVAlig
 import { arcSweep, dimensionGeometry, entityArea, entityLabel, entityLength, normAngle } from '../../core/entities/geometry';
 import { useHost } from '../context';
 import { HistoryRows } from './History';
+import { IFC_CLASSES, type IfcClass } from '../../core/bim';
 import { MATERIALS } from '../../core/materials';
 
 const DEG = Math.PI / 180;
@@ -376,6 +377,25 @@ function Geometry({ app, e }: { app: AppHost; e: Entity }) {
               {MATERIALS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Classe IFC (BIM)">
+            <select
+              className="pp-input"
+              value={e.bim?.cls ?? ''}
+              title="Élément de la maquette à l’export IFC (EXPORTIFC) ; Automatique = d’après le nom, le calque et la forme"
+              onChange={(ev) => {
+                const bim = { ...e.bim, cls: (ev.target.value || undefined) as IfcClass | undefined };
+                if (!bim.cls) delete bim.cls;
+                set({ bim: Object.keys(bim).length ? bim : undefined });
+              }}
+            >
+              <option value="">Automatique</option>
+              {IFC_CLASSES.map((c) => (
+                <option key={c.cls} value={c.cls}>
+                  {c.label}
                 </option>
               ))}
             </select>

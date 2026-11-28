@@ -648,6 +648,7 @@ export const ICONS: Record<string, JSX.Element> = {
   step: doc('STEP', '#7952b3'),
   stl: doc('STL', '#d35400'),
   '3mf': doc('3MF', '#16a085'),
+  ifc: doc('IFC', '#d35400'),
   svg: doc('SVG', '#b7950b'),
   png: doc('PNG', '#2874a6'),
   undo: <path d="M10 8L4 13l6 5M4 13h14a8 8 0 0 1 0 16h-6" />,

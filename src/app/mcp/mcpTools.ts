@@ -135,8 +135,8 @@ async function dispatch(app: AppHost, req: McpRequest, writer: McpWriter | null)
 
     case 'xylform_exporter': {
       const format = String(a.format ?? 'stl').toLowerCase().replace(/^\./, '');
-      const cmd = ({ stl: 'EXPORTSTL', '3mf': 'EXPORT3MF', step: 'EXPORTSTEP', stp: 'EXPORTSTEP', dxf: 'EXPORTDXF', svg: 'EXPORTSVG', xcad: 'ENREGSOUS' } as Record<string, string>)[format];
-      if (!cmd) return text(`Format « ${format} » non pris en charge : stl, 3mf, step, dxf, svg ou xcad.`, true);
+      const cmd = ({ stl: 'EXPORTSTL', '3mf': 'EXPORT3MF', step: 'EXPORTSTEP', stp: 'EXPORTSTEP', ifc: 'EXPORTIFC', dxf: 'EXPORTDXF', svg: 'EXPORTSVG', xcad: 'ENREGSOUS' } as Record<string, string>)[format];
+      if (!cmd) return text(`Format « ${format} » non pris en charge : stl, 3mf, step, ifc, dxf, svg ou xcad.`, true);
       if (!writer) return text('L’export vers un fichier n’est possible que dans la version bureau.', true);
       // objets à exporter : noms de script ($nom) ou handles
       const pre: string[] = [];

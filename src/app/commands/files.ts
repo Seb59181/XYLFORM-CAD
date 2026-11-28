@@ -23,13 +23,14 @@ import type { SolidResult } from '../../kernel/protocol';
 import type { AppHost, DocTab } from '../AppHost';
 import { clipboardShapeIds } from './utility';
 import { isScriptFile, openScriptFile } from './script';
+import { readIfcEntities } from './bim';
 import { analyzeMeshes, describeChecks, drawingUnit, findOverlaps, overlapGroups, showAnalysis } from '../printCheck';
-import { cmd, fmt, getDistance, getKeyword, getNumber, isBody, isSolid, kw, selectObjects } from './helpers';
+import { cmd, exportSet, fmt, getDistance, getKeyword, getNumber, isBody, isSolid, kw, selectObjects } from './helpers';
 
 type Solid3D = Extract<Entity, { type: '3DSOLID' }>;
 
-const OPEN_ACCEPT = '.xcad,.sebcad,.ncad,.dxf,.dwg,.step,.stp,.stl,.3mf';
-const IMPORT_ACCEPT = '.dxf,.dwg,.step,.stp,.stl,.3mf';
+const OPEN_ACCEPT = '.xcad,.sebcad,.ncad,.dxf,.dwg,.step,.stp,.stl,.3mf,.ifc';
+const IMPORT_ACCEPT = '.dxf,.dwg,.step,.stp,.stl,.3mf,.ifc';
 
 /** Unités possibles d'un STL (le format n'en porte pas) : facteur vers le mm. */
 const STL_UNITS: Record<string, number> = { Millimeters: 1, Centimeters: 10, Meters: 1000, Inches: 25.4 };
@@ -145,6 +146,7 @@ async function readForeign(app: AppHost, ctx: CommandContext, file: File): Promi
     ctx.print(`${entities.length} corps importé(s).`);
     return { entities, layers: [] };
   }
+  if (ext === 'ifc') return readIfcEntities(app, ctx, file.name, bytes);
   if (isMeshFile(file.name)) return { entities: await readMesh(app, ctx, file.name, bytes), layers: [] };
   throw new Error(`Format non pris en charge : .${ext}`);
 }
@@ -231,7 +233,7 @@ export async function openDesktopFile(app: AppHost, file: File): Promise<void> {
   if (isScriptFile(file.name)) return openScriptFile(app, file);
   const kind = underlayKind(file.name);
   if (kind === 'pdf' || kind === 'image') return openDroppedFile(app, file);
-  if (!isProject(file.name) && !kind && !['step', 'stp', 'stl', '3mf'].includes(extension(file.name))) return;
+  if (!isProject(file.name) && !kind && !['step', 'stp', 'stl', '3mf', 'ifc'].includes(extension(file.name))) return;
   if (!(await app.leaveCommand())) return;
   await app.processor.run(cmd('OPEN', 'OUVRIR', [], '', async (ctx, a) => openInTab(ctx, a, file)));
 }
@@ -271,7 +273,7 @@ const newDoc = cmd('NEW', 'NOUVEAU', ['NV', 'QNEW'], 'Nouveau dessin dans un nou
   ctx.print(`Nouveau dessin : ${app.doc.fileName}`);
 });
 
-const open = cmd('OPEN', 'OUVRIR', ['OU'], 'Ouvre un dessin .xcad (ou .sebcad), DXF, DWG, STEP, STL ou 3MF dans un nouvel onglet (Ctrl+O)', async (ctx, app) => {
+const open = cmd('OPEN', 'OUVRIR', ['OU'], 'Ouvre un dessin .xcad (ou .sebcad), DXF, DWG, STEP, STL, 3MF ou IFC dans un nouvel onglet (Ctrl+O)', async (ctx, app) => {
   const file = await app.ui.openFile(OPEN_ACCEPT);
   if (!file) return;
   await openInTab(ctx, app, file);
@@ -333,7 +335,7 @@ const saveAll = cmd('SAVEALL', 'ENREGTOUT', ['ENRTOUT'], 'Enregistre tous les de
 const saveCmd = cmd('SAVE', 'ENREG', ['QSAVE', 'ENR'], 'Enregistre le dessin (Ctrl+S)', async (ctx, app) => save(ctx, app, false));
 const saveAs = cmd('SAVEAS', 'ENREGSOUS', ['ES'], 'Enregistre le dessin sous un autre nom (Ctrl+Maj+S)', async (ctx, app) => save(ctx, app, true));
 
-const importCmd = cmd('IMPORT', 'IMPORTER', ['IMP'], 'Insère un fichier DXF, DWG, STEP, STL ou 3MF dans le dessin', async (ctx, app) => {
+const importCmd = cmd('IMPORT', 'IMPORTER', ['IMP'], 'Insère un fichier DXF, DWG, STEP, STL, 3MF ou IFC dans le dessin', async (ctx, app) => {
   const file = await app.ui.openFile(IMPORT_ACCEPT);
   if (file) await importFile(ctx, app, file);
 });
@@ -341,14 +343,6 @@ const importCmd = cmd('IMPORT', 'IMPORTER', ['IMP'], 'Insère un fichier DXF, DW
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
-
-/** Objets à exporter : sélection courante sinon tout le visible. */
-function exportSet(app: AppHost, accept: (e: Entity) => boolean): Entity[] {
-  // les fonds de plan restent des références ; les lignes de construction ne sortent pas
-  const filter = (e: Entity) => e.type !== 'UNDERLAY' && !(e.type === 'LINE' && e.guide) && accept(e);
-  const pre = app.takePreselection().map((h) => app.doc.get(h)).filter((e): e is Entity => !!e && filter(e));
-  return pre.length ? pre : app.visible().filter(filter);
-}
 
 const exportDxf = cmd('EXPORTDXF', 'EXPORTDXF', ['DXFOUT', 'EDXF'], 'Exporte le dessin en DXF (R12)', async (ctx, app) => {
   const es = exportSet(app, () => true);

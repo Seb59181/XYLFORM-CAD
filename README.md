@@ -5,7 +5,8 @@
 Logiciel libre de CAO 2D/3D pour l'impression 3D, à l'ergonomie des logiciels de CAO classiques : application
 Windows (.exe) ou dans le navigateur. Noyau B-rep **OpenCascade** (WebAssembly), rendu **Three.js**,
 interface **React**, lecture **DWG** (LibreDWG), lecture/écriture **DXF** et **STEP**, **fonds de
-plan** DWG/DXF/PDF/images, export **STL** et **3MF** avec contrôle d'imprimabilité, visserie à
+plan** DWG/DXF/PDF/images, export **STL** et **3MF** avec contrôle d'imprimabilité, échange **IFC**
+(BIM) en lecture et écriture, visserie à
 filetage réel, charnières imprimables, raccords PVC…
 
 Licence **MIT** (voir [LICENSE](LICENSE)). Nouveautés : [CHANGELOG.md](CHANGELOG.md).
@@ -115,6 +116,7 @@ Version autonome (sans serveur de développement) : `npm.cmd run build` puis `np
 | Arrondir des arêtes | `RACCORDBORD` → `R` pour le rayon → cliquez les arêtes → Entrée |
 | Extruder un contour | Dessinez un `RECTANGLE` ou une polyligne fermée, puis `EXTRUSION` |
 | Exporter pour l'impression 3D | Onglet **Sortie** → **STL** ou **3MF** (qualité, unités, réparation, vérification d'étanchéité) |
+| Exporter vers un logiciel BIM | Onglet **Sortie** → **IFC** (`EXPORTIFC`) : murs, dalles, poteaux… avec calques, matériaux, dimensions ; `CLASSEIFC` choisit la classe d'un solide |
 | Ouvrir un DWG/DXF | `Ctrl+O` ou glissez-déposez le fichier dans la zone de dessin |
 | Mettre un plan en fond | `ATTACHER` (ou onglet **Insertion › Attacher**) : DWG, DXF, PDF ou image, puis point d'insertion, échelle, rotation |
 | Gérer les fonds de plan | `REFEXT` ou l'icône en haut à droite : charger/décharger, recharger, estomper, calques du fond, lier, détacher |
@@ -399,13 +401,18 @@ Exemple : `BOITE` 60×40×20 → `ESQUISSE` sur le dessus → `CERCLE` → `APPU
   animation), curseurs dans le Navigateur, `INTERFERENCE` (volumes communs en rouge).
 - **Import STL / 3MF** : ouverture ou glisser-déposer ; le corps maillé se déplace, se coupe et accepte
   union / soustraction / intersection. `CONVSOLIDE` le transforme en solide B-rep (raccords, coque…).
+- **BIM (IFC)** : `EXPORTIFC` écrit une maquette IFC4 ou IFC2X3 (projet, bâtiment, niveau ; un élément
+  par solide : mur, dalle, poteau, poutre, toiture, porte, fenêtre…, classé d'après son nom, son calque
+  ou sa forme, ou par `CLASSEIFC`), avec calque, matériau, couleur, dimensions et quantités ; boîtes et
+  cylindres restent des extrusions modifiables. `IMPORTER`/`OUVRIR` lisent les fichiers IFC (bibliothèque
+  libre web-ifc) : un corps maillé par élément, rangé dans un calque par classe.
 - **Surfaces** : plane, réseau, extrusion, révolution, balayage, lissage, épaissir en solide.
 - **Plans DWG/DXF** : textes et MTEXT à leur justification exacte (centré, milieu, droite, haut…),
   retour à la ligne des MTEXT sur la largeur de leur cadre, interligne, facteur de largeur des styles,
   attributs de blocs, multilignes de repère, tableaux.
 - **Fichiers** : `.xcad` (format natif, solides B-rep exacts ; les anciens `.ncad` s'ouvrent aussi), DWG R13 à 2018+ (lecture), DXF (lecture et
   écriture), STEP AP203/AP214 (lecture et écriture), STL binaire/ASCII et 3MF (lecture et écriture : unités,
-  couleurs, un objet par solide), SVG (vue de dessus), PNG (capture).
+  couleurs, un objet par solide), IFC2X3 / IFC4 (lecture et écriture), SVG (vue de dessus), PNG (capture).
 
 ## Tests
 

@@ -5,6 +5,23 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.7.0 — 28 novembre 2026
+
+Xylform CAD 1.7.0 : échange avec les logiciels BIM par le format ouvert IFC, en import et en export.
+
+- **Export IFC** (**`EXPORTIFC`**, bouton **IFC** de l'onglet Sortie › BIM) : la maquette est écrite en **IFC4** (ou **IFC2X3** pour les logiciels plus anciens), lisible par les logiciels de BIM et les visionneuses IFC.
+  - Structure du bâtiment : projet › terrain › bâtiment › niveau (noms réglables).
+  - Un **élément** par solide : mur, dalle / plancher, poteau, poutre, toiture, porte, fenêtre, escalier, garde-corps, revêtement, fondation, ossature, plaque, mobilier ou élément générique.
+  - **Classement automatique** : d'après le nom du solide ou de son calque (« Murs », « Poteaux », « Dalle RDC »…), sinon d'après sa forme (mince et haut = mur, mince à plat = dalle, élancé debout = poteau, élancé couché = poutre).
+  - Pour chaque élément : calque (dans le fichier et en propriété), **matériau** (matière de la bibliothèque, image plaquée ou matériau de rendu), couleur, **dimensions** (longueur, largeur, hauteur) et **quantités** (volume en m³, surface en m²).
+  - Les **boîtes et cylindres** restent des **extrusions modifiables** dans le logiciel BIM (épaisseur d'un mur, hauteur d'un poteau) ; les autres solides sont écrits en facettes, avec une précision réglable. Coordonnées en millimètres.
+  - Fichiers vérifiés selon les règles des schémas IFC4 et IFC2X3.
+- **Classe IFC** (**`CLASSEIFC`**, ou liste **Classe IFC (BIM)** de la palette Propriétés) : choisit la classe d'un ou de plusieurs solides ; « Automatique » revient au classement automatique.
+- **Import IFC** : `IMPORTER`, `OUVRIR` ou glisser-déposer d'un fichier `.ifc` (IFC2X3, IFC4, IFC4X3), lu par la bibliothèque libre web-ifc. Chaque élément devient un corps maillé (déplacer, couper, booléens, export ; `CONVSOLIDE` pour un solide exact), avec son nom, sa couleur et un matériau de rendu proche (béton, bois, acier, verre…), rangé dans un calque par classe (« IFC Mur », « IFC Dalle / plancher »…). Les pièces et réservations sont ignorées ; la classe et l'identifiant de chaque élément sont gardés pour un nouvel export.
+- Scripts et connexion IA : `CLASSEIFC` et `EXPORTIFC` sont dans la consigne, et l'outil d'export accepte le format `ifc`.
+
+---
+
 ## 1.6.0 — 28 novembre 2026
 
 Xylform CAD 1.6.0 : une bibliothèque de matériaux d'aspect réel, de la pelouse à la pierre bleue.
