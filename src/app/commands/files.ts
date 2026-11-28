@@ -280,22 +280,29 @@ const open = cmd('OPEN', 'OUVRIR', ['OU'], 'Ouvre un dessin .xcad (ou .sebcad), 
 /** Enregistre le dessin actif ; false si annulé. */
 async function saveActive(app: AppHost, ask: boolean, print: (m: string) => void): Promise<boolean> {
   print(`Enregistrement de « ${app.doc.fileName} »…`);
-  const data = await saveProject(app);
-  const name = app.doc.fileName.toLowerCase().endsWith('.xcad') ? app.doc.fileName : `${baseName(app.doc.fileName)}.xcad`;
-  const target = await saveFile(data, { name, mime: 'application/zip', description: 'Dessin Xylform CAD', extensions: ['.xcad'], handle: ask ? null : app.fileHandle });
-  if (!target) {
-    print('Enregistrement annulé.');
-    return false;
+  const end = app.ui.busy(`Enregistrement de « ${app.doc.fileName} »…`);
+  try {
+    const data = await saveProject(app);
+    const name = app.doc.fileName.toLowerCase().endsWith('.xcad') ? app.doc.fileName : `${baseName(app.doc.fileName)}.xcad`;
+    const target = await saveFile(data, { name, mime: 'application/zip', description: 'Dessin Xylform CAD', extensions: ['.xcad'], handle: ask ? null : app.fileHandle });
+    if (!target) {
+      end('cancel');
+      print('Enregistrement annulé.');
+      return false;
+    }
+    app.fileHandle = target.handle ?? null;
+    app.doc.fileName = target.name;
+    app.doc.dirty = false;
+    if (target.handle && 'path' in target.handle) addRecent(target.name, target.handle.path);
+    app.emit('doc');
+    app.emit('tabs');
+    print(`Dessin enregistré : ${target.name} (${fmt(data.length / 1024, 1)} Ko)`);
+    end('ok', `Enregistré : ${target.name}`);
+    return true;
+  } catch (e) {
+    end('error');
+    throw e;
   }
-  app.fileHandle = target.handle ?? null;
-  app.doc.fileName = target.name;
-  app.doc.dirty = false;
-  if (target.handle && 'path' in target.handle) addRecent(target.name, target.handle.path);
-  app.emit('doc');
-  app.emit('tabs');
-  print(`Dessin enregistré : ${target.name} (${fmt(data.length / 1024, 1)} Ko)`);
-  app.ui.toast(`Enregistré : ${target.name}`, 'success');
-  return true;
 }
 
 async function save(ctx: CommandContext, app: AppHost, ask: boolean): Promise<void> {

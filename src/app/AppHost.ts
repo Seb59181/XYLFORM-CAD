@@ -284,6 +284,11 @@ export interface MeshExportSettings {
 
 export interface UiApi {
   toast(message: string, kind?: 'info' | 'success' | 'error'): void;
+  /**
+   * Indicateur d'activité (cercle tournant au centre de l'écran, au moins 1 s) ; la fonction
+   * renvoyée le termine : coche verte si réussi, rien si annulé.
+   */
+  busy(message: string): (outcome: 'ok' | 'cancel' | 'error', doneMessage?: string) => void;
   openFile(accept: string): Promise<File | null>;
   prompt(title: string, initial?: string, label?: string): Promise<string | null>;
   confirm(message: string, title?: string, labels?: { ok: string; cancel: string }): Promise<boolean>;
@@ -410,6 +415,7 @@ const KEEP_SELECTION = new Set(['GRIP_EDIT', 'PROPERTIES', 'LIST', 'MASSPROP', '
 
 const fallbackUi: UiApi = {
   toast: (m) => console.info(m),
+  busy: () => () => undefined,
   openFile: async () => null,
   prompt: async (_t, initial) => initial ?? null,
   confirm: async () => true,

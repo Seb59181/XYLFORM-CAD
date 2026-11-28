@@ -90,6 +90,7 @@ export function headlessUi(base: UiApi, log: (m: string) => void): UiApi {
     scriptEditor: async () => null,
     mcpPanel: () => undefined,
     renderPanel: async () => null,
+    busy: () => () => undefined,
     raytracePanel: async () => undefined,
   };
 }

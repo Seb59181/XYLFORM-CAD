@@ -5,6 +5,12 @@ sont téléchargeables sur <https://github.com/Seb59181/XYLFORM-CAD/releases>.
 
 ---
 
+## 1.5.1 — 28 novembre 2026
+
+- **Enregistrement visible** : pendant l'enregistrement du dessin (Ctrl+S, `ENREG`, `ENREGSOUS`, `ENREGTOUT`), un petit cercle tournant s'affiche au centre de l'écran (au moins 1 seconde), puis une coche verte confirme l'enregistrement. Rien ne s'affiche si l'enregistrement est annulé.
+
+---
+
 ## 1.5.0 — 28 novembre 2026
 
 Xylform CAD 1.5.0 : un vrai moteur de rendu par lancer de rayons, pour des images de qualité photo.
